@@ -1,0 +1,116 @@
+/*
+  Foundation stylesheet.
+
+  Deliberately NOT a finished design system — this is here so Phase 1
+  has something readable to render while the DB/routing/template
+  pipeline is being proven out. The real visual identity (typography
+  pairing, palette, layout rhythm) is a Phase 3 decision, made once
+  there's real content to design around, not guessed at here.
+*/
+
+:root {
+  --color-text: #1a1a1a;
+  --color-bg: #ffffff;
+  --color-muted: #666666;
+  --color-border: #dddddd;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-6: 3rem;
+  --content-width: 42rem;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-family: system-ui, -apple-system, "Segoe UI", Georgia, serif;
+  line-height: 1.6;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: inherit;
+}
+
+/* Accessible skip link: hidden until focused */
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: var(--space-3);
+  top: var(--space-3);
+}
+
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.site-header__brand {
+  font-weight: 700;
+  text-decoration: none;
+  letter-spacing: 0.05em;
+}
+
+.site-nav {
+  display: flex;
+  gap: var(--space-4);
+}
+
+main {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+}
+
+.site-footer {
+  border-top: 1px solid var(--color-border);
+  padding: var(--space-4);
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.foundation-notice h1 {
+  margin-top: 0;
+}
+
+.foundation-notice p {
+  color: var(--color-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

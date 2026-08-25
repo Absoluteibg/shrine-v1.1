@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} — a literary archive{% endblock %}
+
+{% block content %}
+<section class="foundation-notice">
+    <h1>{{ app_name }}</h1>
+    <p>
+        The foundation is running: FastAPI, SQLite, Jinja2, and the static
+        asset pipeline are wired together and serving this page. The real
+        homepage — recent and featured published works — arrives in
+        Phase 3, once the content system exists.
+    </p>
+</section>
+{% endblock %}

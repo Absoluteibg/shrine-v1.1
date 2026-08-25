@@ -1,0 +1,75 @@
+"""
+SHRINE — application entrypoint.
+
+Wires together configuration, static files, templates, and the three
+router modules that define the app's boundaries:
+
+    app/routers/public.py  -> public, read-only pages (no auth)
+    app/routers/admin.py   -> authenticated CMS pages (Phase 4)
+    app/routers/api.py     -> versioned JSON API (/api/v1/...)
+
+Routers stay thin: request in, call a service, response out. Query
+logic belongs in repositories (app/repositories); business rules belong
+in services (app/services). See ARCHITECTURE.md for the full picture.
+
+Run locally with:
+    uvicorn app.main:app --reload
+"""
+
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
+from app.core.config import get_settings
+from app.routers import admin, api, public
+
+settings = get_settings()
+
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger("shrine")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Fail loudly on startup rather than silently running an insecure
+    # production deployment — a wrong config here should never reach
+    # "the server is up and serving traffic".
+    if settings.is_production and settings.SECRET_KEY == "dev-only-insecure-secret-change-me":
+        raise RuntimeError(
+            "SECRET_KEY is still the development default. Set a real "
+            "SECRET_KEY environment variable before running in production."
+        )
+
+    logger.info(
+        "%s starting up | env=%s debug=%s db=%s",
+        settings.APP_NAME,
+        settings.ENV,
+        settings.DEBUG,
+        settings.DATABASE_URL,
+    )
+    yield
+    logger.info("%s shutting down", settings.APP_NAME)
+
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    debug=settings.DEBUG,
+    lifespan=lifespan,
+)
+
+app.mount("/static", StaticFiles(directory=str(settings.STATIC_DIR)), name="static")
+
+app.include_router(public.router)
+app.include_router(admin.router)
+app.include_router(api.router)
+
+
+@app.get("/health", tags=["infra"])
+def health_check() -> dict:
+    """Liveness check for deployment/uptime tooling. Deliberately has no DB dependency."""
+    return {"status": "ok", "app": settings.APP_NAME, "env": settings.ENV}
