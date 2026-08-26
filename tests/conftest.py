@@ -1,12 +1,11 @@
 """
 Shared pytest fixtures.
 
-Tests run against a throwaway SQLite file (created fresh per test
-session, deleted after) instead of the real shrine.db. The FastAPI
+Tests run against a throwaway SQLite file — a fresh one for every test
+function, deleted after — instead of the real shrine.db. The FastAPI
 `get_db` dependency is overridden to hand out sessions bound to that
 test database, so running the test suite never reads or writes real
-content. This pattern is set up now, before any models exist, so every
-future test in Phase 2+ can reuse it unchanged.
+content, and no test can see another test's data.
 """
 
 import os
@@ -23,8 +22,20 @@ from app.db.database import Base, get_db
 from app.main import app
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def test_engine():
+    """
+    A fresh, empty SQLite file for every single test function.
+
+    This fixture is intentionally function-scoped, not session-scoped:
+    a shared database across the whole test run would let one test's
+    data leak into another's (e.g. a work created in one test showing
+    up in a different test's "list published works" assertion) —
+    exactly the kind of bug that stays invisible until a test happens
+    to assert on page content broadly, then fails for a confusing
+    reason. A fresh file per test costs a few milliseconds and buys
+    real isolation.
+    """
     db_fd, db_path = tempfile.mkstemp(suffix=".db")
     engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
     Base.metadata.create_all(bind=engine)

@@ -1,15 +1,42 @@
 {% extends "base.html" %}
 
 {% block title %}{{ app_name }} — a literary archive{% endblock %}
+{% block meta_description %}{{ app_name }} is a small archive of novels, short stories, poems, and essays, kept here to be read.{% endblock %}
 
 {% block content %}
-<section class="foundation-notice">
-    <h1>{{ app_name }}</h1>
-    <p>
-        The foundation is running: FastAPI, SQLite, Jinja2, and the static
-        asset pipeline are wired together and serving this page. The real
-        homepage — recent and featured published works — arrives in
-        Phase 3, once the content system exists.
-    </p>
+<section class="hero">
+    <span class="hero__mark">Novels &middot; Stories &middot; Poems &middot; Essays</span>
+    <h1 class="hero__title">{{ app_name }}</h1>
+    <p class="hero__thesis">A small archive, kept here to be read &mdash; not scrolled past.</p>
+</section>
+
+<div class="ornament" aria-hidden="true">
+    <span class="ornament__rule"></span>
+    <span class="ornament__mark"></span>
+    <span class="ornament__rule"></span>
+</div>
+
+<section aria-labelledby="recent-heading">
+    <h2 id="recent-heading" class="section-heading">Recently published</h2>
+
+    {% if recent_works %}
+    <ul class="catalog">
+        {% for work in recent_works %}
+        <li class="catalog__item">
+            <a class="catalog__link" href="/{{ segment_for(work.type) }}/{{ work.slug }}">
+                <span class="catalog__eyebrow">
+                    {{ work.type.value|capitalize }}{% if work.published_at %} &middot; Published {{ work.published_at.strftime('%d %b %Y') }}{% endif %}
+                </span>
+                <span class="catalog__title">{{ work.title }}</span>
+                {% if work.description %}
+                <span class="catalog__excerpt">{{ work.description|truncate(160) }}</span>
+                {% endif %}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="catalog-empty">Nothing has been published here yet. Check back soon.</p>
+    {% endif %}
 </section>
 {% endblock %}

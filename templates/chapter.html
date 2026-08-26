@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ chapter.title }} &mdash; {{ work.title }} &mdash; {{ app_name }}{% endblock %}
+{% block meta_description %}Read &ldquo;{{ chapter.title }}&rdquo; from {{ work.title }} on {{ app_name }}.{% endblock %}
+{% block body_class %}reading{% endblock %}
+{% block og_type %}article{% endblock %}
+
+{% block content %}
+<a class="breadcrumb" href="/{{ segment }}/{{ work.slug }}">{{ work.title }}</a>
+<h1 class="chapter__title">{{ chapter.title }}</h1>
+
+<div class="ornament ornament--tight" aria-hidden="true">
+    <span class="ornament__rule"></span>
+    <span class="ornament__mark"></span>
+    <span class="ornament__rule"></span>
+</div>
+
+<article class="chapter__body">{{ chapter.content }}</article>
+
+<nav class="chapter-nav" aria-label="Chapter navigation">
+    {% if prev_chapter %}
+    <a class="chapter-nav__link" href="/works/{{ work.slug }}/chapters/{{ prev_chapter.slug }}">
+        <span class="chapter-nav__label">&larr; Previous</span>
+        {{ prev_chapter.title }}
+    </a>
+    {% else %}
+    <span class="chapter-nav__spacer"></span>
+    {% endif %}
+
+    {% if next_chapter %}
+    <a class="chapter-nav__link" href="/works/{{ work.slug }}/chapters/{{ next_chapter.slug }}">
+        <span class="chapter-nav__label">Next &rarr;</span>
+        {{ next_chapter.title }}
+    </a>
+    {% else %}
+    <span class="chapter-nav__spacer"></span>
+    {% endif %}
+</nav>
+{% endblock %}

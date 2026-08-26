@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ label }} &mdash; {{ app_name }}{% endblock %}
+{% block meta_description %}Published {{ label|lower }} from {{ app_name }}.{% endblock %}
+
+{% block content %}
+<span class="page-eyebrow">{{ app_name }}</span>
+<h1 class="page-title">{{ label }}</h1>
+
+{% if works %}
+<ul class="catalog">
+    {% for work in works %}
+    <li class="catalog__item">
+        <a class="catalog__link" href="/{{ segment }}/{{ work.slug }}">
+            <span class="catalog__eyebrow">
+                {% if work.published_at %}Published {{ work.published_at.strftime('%d %b %Y') }}{% endif %}
+            </span>
+            <span class="catalog__title">{{ work.title }}</span>
+            {% if work.description %}
+            <span class="catalog__excerpt">{{ work.description|truncate(160) }}</span>
+            {% endif %}
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+
+{% if has_prev or has_more %}
+<nav class="pagination" aria-label="Pagination">
+    {% if has_prev %}<a href="?page={{ page - 1 }}">&larr; Newer</a>{% else %}<span></span>{% endif %}
+    {% if has_more %}<a href="?page={{ page + 1 }}">Older &rarr;</a>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<p class="catalog-empty">No {{ label|lower }} have been published yet.</p>
+{% endif %}
+{% endblock %}

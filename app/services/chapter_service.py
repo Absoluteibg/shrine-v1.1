@@ -38,6 +38,15 @@ class ChapterService:
         archived/draft parent hides all of its chapters regardless of
         their own status.
         """
+        _, chapter = self.get_published_chapter_with_work(work_slug, chapter_slug)
+        return chapter
+
+    def get_published_chapter_with_work(self, work_slug: str, chapter_slug: str):
+        """
+        Like get_published_by_work_and_slug, but also returns the parent
+        Work. The chapter reading page needs both (breadcrumb, work
+        title, work type) — this does one work lookup instead of two.
+        """
         work = self.works.get_by_slug(work_slug)
         if work is None or work.status != PublishStatus.PUBLISHED:
             raise ChapterNotFoundError(f"Published chapter '{chapter_slug}' not found")
@@ -45,7 +54,21 @@ class ChapterService:
         chapter = self.chapters.get_by_work_and_slug(work.id, chapter_slug)
         if chapter is None or chapter.status != PublishStatus.PUBLISHED:
             raise ChapterNotFoundError(f"Published chapter '{chapter_slug}' not found")
-        return chapter
+        return work, chapter
+
+    def get_navigation(self, chapter: Chapter) -> tuple[Chapter | None, Chapter | None]:
+        """
+        (previous, next) published chapters within the same work, for
+        reading navigation. Chapters per work are inherently few, so
+        this just reuses list_published_for_work rather than a bespoke
+        query — no pagination needed at this scale.
+        """
+        siblings = self.list_published_for_work(chapter.work_id)
+        ids = [c.id for c in siblings]
+        idx = ids.index(chapter.id)
+        previous = siblings[idx - 1] if idx > 0 else None
+        upcoming = siblings[idx + 1] if idx < len(siblings) - 1 else None
+        return previous, upcoming
 
     def list_for_admin(self, work_id: int) -> list[Chapter]:
         return self.chapters.list_by_work(work_id)

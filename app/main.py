@@ -19,11 +19,15 @@ Run locally with:
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler as default_http_exception_handler
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import get_settings
+from app.core.templating import templates
 from app.routers import admin, api, public
+from app.services.exceptions import NotFoundError
 
 settings = get_settings()
 
@@ -73,3 +77,25 @@ app.include_router(api.router)
 def health_check() -> dict:
     """Liveness check for deployment/uptime tooling. Deliberately has no DB dependency."""
     return {"status": "ok", "app": settings.APP_NAME, "env": settings.ENV}
+
+
+# ---------------------------------------------------------- error handling
+
+# This is the payoff for services raising plain NotFoundError instead of
+# an HTTP-flavored exception (see app/services/exceptions.py): the
+# translation to "404, rendered as our own page" happens once, here, no
+# matter which public route triggered it.
+@app.exception_handler(NotFoundError)
+async def not_found_error_handler(request: Request, exc: NotFoundError):
+    return templates.TemplateResponse(request, "404.html", {}, status_code=404)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    # A genuinely unmatched URL also gets the on-brand 404 page — but
+    # only for the public site. /api and /admin (Phase 4) keep plain
+    # JSON error responses, since their clients are code, not a reader's
+    # browser.
+    if exc.status_code == 404 and not request.url.path.startswith(("/api", "/admin", "/static")):
+        return templates.TemplateResponse(request, "404.html", {}, status_code=404)
+    return await default_http_exception_handler(request, exc)

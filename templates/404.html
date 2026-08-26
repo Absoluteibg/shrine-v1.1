@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Not found &mdash; {{ app_name }}{% endblock %}
+{% block meta_description %}This page could not be found.{% endblock %}
+
+{% block content %}
+<div class="not-found">
+    <span class="not-found__code">404</span>
+    <h1 class="not-found__title">This page isn't in the archive.</h1>
+    <p class="not-found__body">It may have been unpublished, moved, or never existed.</p>
+    <div class="not-found__links">
+        <a href="/">Home</a>
+        <a href="/novels">Novels</a>
+        <a href="/stories">Stories</a>
+        <a href="/poems">Poems</a>
+        <a href="/essays">Essays</a>
+    </div>
+</div>
+{% endblock %}

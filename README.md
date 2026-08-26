@@ -5,10 +5,9 @@ built as a modular monolith that can grow into a larger publishing
 platform without a rewrite. See [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 for the design rationale.
 
-**Status: Phase 2 — Content System.** Work / Chapter / Tag models,
-repositories, services, and the publishing state machine are in place
-and tested (48 tests). Not wired into any HTTP route yet — public reads
-(Phase 3) and the admin CMS (Phase 4) both consume this layer next.
+**Status: Phase 3 — Public Website.** The full read-only public site is
+live: home, about, four type listings, work detail, and the chapter
+reading page, plus sitemap.xml/robots.txt. 62 tests passing.
 
 ## Requirements
 
@@ -58,6 +57,21 @@ Both Work and Chapter use the same publishing states: `draft` →
 `published` → `archived`, with rules enforced in
 `app/services/publishing.py`. See `ARCHITECTURE.md` for the details.
 
+## Public site
+
+| Route | Renders |
+|---|---|
+| `/` | Home — recent published works |
+| `/about` | Static author bio — **edit `templates/about.html`**, it ships with placeholder copy |
+| `/novels`, `/stories`, `/poems`, `/essays` | Type listings, paginated 20/page |
+| `/novels/{slug}` (etc.) | Work detail + table of contents |
+| `/works/{slug}/chapters/{slug}` | Chapter reading page |
+| `/sitemap.xml`, `/robots.txt` | SEO — regenerated from published content on every request |
+
+Draft and archived content is never reachable here — enforced in the
+service layer (Phase 2), not the router. See ARCHITECTURE.md for the
+design concept behind the reading page.
+
 ## Database migrations
 
 SHRINE uses Alembic. The connection string comes from `DATABASE_URL` in
@@ -102,8 +116,8 @@ tests/
 |---|---|---|
 | 1 | Foundation: config, DB, migrations, routing skeleton | ✅ done |
 | 2 | Content system: Work / Chapter / Tag, repositories, services | ✅ done |
-| 3 | Public website | next |
-| 4 | Admin CMS + auth | planned |
+| 3 | Public website | ✅ done |
+| 4 | Admin CMS + auth | next |
 | 5 | Quality: validation, logging, security review, tests | planned |
 | 6 | Deployment | planned |
 | 7 | Real-world scaling (only as measured need appears) | planned |

@@ -1,24 +1,55 @@
 /*
-  Foundation stylesheet.
+  SHRINE — design system.
 
-  Deliberately NOT a finished design system — this is here so Phase 1
-  has something readable to render while the DB/routing/template
-  pipeline is being proven out. The real visual identity (typography
-  pairing, palette, layout rhythm) is a Phase 3 decision, made once
-  there's real content to design around, not guessed at here.
+  Concept: the site is a dark, hushed archive for browsing (like a quiet
+  reading room). Opening a chapter shifts the page itself to a lit
+  parchment surface — like holding a manuscript up to candlelight. That
+  tonal shift is the one deliberate signature move; everything else
+  stays quiet and disciplined around it. See ARCHITECTURE.md.
 */
 
 :root {
-  --color-text: #1a1a1a;
-  --color-bg: #ffffff;
-  --color-muted: #666666;
-  --color-border: #dddddd;
+  /* ---- Color: 6 named values, nothing else ---- */
+  --ink: #15120e;            /* shell background (browsing chrome) */
+  --ink-raised: #211b14;     /* elevated panels on the shell */
+  --parchment: #efe1be;      /* reading-surface background */
+  --gilt: #b4863f;           /* the one accent — muted antique brass */
+  --text-ink: #ede4d2;       /* body text on the dark shell */
+  --text-manuscript: #26200f; /* body text on parchment */
+
+  /* Derived, not new colors — same hues at different opacity */
+  --rule-on-ink: rgb(237 228 210 / 14%);
+  --rule-on-parchment: rgb(38 32 15 / 16%);
+  --shadow-color: rgb(0 0 0 / 45%);
+
+  /* ---- Type ---- */
+  --font-reading: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+  --font-utility: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.25rem;
+  --text-3xl: 3rem;
+
+  /* ---- Spacing scale ---- */
+  --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 1rem;
   --space-4: 1.5rem;
+  --space-5: 2rem;
   --space-6: 3rem;
+  --space-8: 4.5rem;
+  --space-10: 6rem;
+
   --content-width: 42rem;
+  --reading-width: 38rem;
+  --wide-width: 60rem;
 }
+
+/* ============================================================ reset */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -30,9 +61,10 @@ html {
 
 body {
   margin: 0;
-  color: var(--color-text);
-  background: var(--color-bg);
-  font-family: system-ui, -apple-system, "Segoe UI", Georgia, serif;
+  background: var(--ink);
+  color: var(--text-ink);
+  font-family: var(--font-reading);
+  font-size: var(--text-base);
   line-height: 1.6;
 }
 
@@ -43,17 +75,31 @@ img {
 
 a {
   color: inherit;
+  text-decoration-color: var(--gilt);
+  text-underline-offset: 0.2em;
+  transition: color 150ms ease, opacity 150ms ease;
 }
 
-/* Accessible skip link: hidden until focused */
+ul, ol {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+h1, h2, h3, p, figure {
+  margin: 0;
+}
+
+/* ============================================================ a11y */
+
 .skip-link {
   position: absolute;
   left: -999px;
   top: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: var(--ink-raised);
+  color: var(--text-ink);
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--gilt);
   z-index: 100;
 }
 
@@ -63,50 +109,473 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+  outline: 2px solid var(--gilt);
+  outline-offset: 3px;
 }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ============================================================ ornament */
+
+/*
+  The signature mark — a small hand-set diamond, not a decoration
+  bolted on top. Used as a section divider and under chapter titles,
+  echoing a printer's fleuron in classic book typesetting.
+*/
+
+.ornament {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-5) 0;
+}
+
+.ornament__rule {
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.2;
+}
+
+.ornament__mark {
+  flex-shrink: 0;
+  width: 0.4rem;
+  height: 0.4rem;
+  background: var(--gilt);
+  transform: rotate(45deg);
+}
+
+.ornament--tight {
+  margin: var(--space-3) 0;
+}
+
+/* ============================================================ header */
 
 .site-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--rule-on-ink);
+  flex-wrap: wrap;
 }
 
 .site-header__brand {
+  font-family: var(--font-reading);
+  font-size: var(--text-lg);
   font-weight: 700;
+  letter-spacing: 0.12em;
   text-decoration: none;
-  letter-spacing: 0.05em;
+  color: var(--text-ink);
 }
 
 .site-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-4);
+  font-family: var(--font-utility);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
+
+.site-nav a {
+  text-decoration: none;
+  color: var(--text-ink);
+  opacity: 0.75;
+}
+
+.site-nav a:hover,
+.site-nav a:focus-visible,
+.site-nav a[aria-current="page"] {
+  opacity: 1;
+  color: var(--gilt);
+}
+
+/* ============================================================ layout */
 
 main {
-  max-width: var(--content-width);
+  max-width: var(--wide-width);
   margin: 0 auto;
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-8) var(--space-5);
 }
 
+.page-eyebrow {
+  display: block;
+  font-family: var(--font-utility);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--gilt);
+  margin-bottom: var(--space-2);
+}
+
+.page-title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.page-lede {
+  font-size: var(--text-lg);
+  font-style: italic;
+  color: var(--text-ink);
+  opacity: 0.85;
+  max-width: 38ch;
+  margin-top: var(--space-3);
+}
+
+/* ============================================================ footer */
+
 .site-footer {
-  border-top: 1px solid var(--color-border);
-  padding: var(--space-4);
-  color: var(--color-muted);
-  font-size: 0.875rem;
+  border-top: 1px solid var(--rule-on-ink);
+  padding: var(--space-5);
+  color: var(--text-ink);
+  opacity: 0.6;
+  font-family: var(--font-utility);
+  font-size: var(--text-sm);
   text-align: center;
 }
 
-.foundation-notice h1 {
-  margin-top: 0;
+/* ============================================================ hero (home) */
+
+.hero {
+  max-width: 34rem;
 }
 
-.foundation-notice p {
-  color: var(--color-muted);
+.hero__mark {
+  font-family: var(--font-utility);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--gilt);
 }
+
+.hero__title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  margin-top: var(--space-2);
+}
+
+.hero__thesis {
+  font-size: var(--text-lg);
+  line-height: 1.5;
+  margin-top: var(--space-4);
+  opacity: 0.9;
+}
+
+.section-heading {
+  font-family: var(--font-utility);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--gilt);
+  margin-bottom: var(--space-4);
+}
+
+/* ============================================================ catalog list */
+
+/* Used for the home "recent" list and the /novels /stories /poems /essays listings. */
+
+.catalog__item {
+  border-top: 1px solid var(--rule-on-ink);
+}
+
+.catalog__item:last-child {
+  border-bottom: 1px solid var(--rule-on-ink);
+}
+
+.catalog__link {
+  display: block;
+  padding: var(--space-4) 0;
+  text-decoration: none;
+  color: var(--text-ink);
+}
+
+.catalog__eyebrow {
+  display: block;
+  font-family: var(--font-utility);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+  margin-bottom: var(--space-1);
+}
+
+.catalog__title {
+  display: block;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.catalog__link:hover .catalog__title,
+.catalog__link:focus-visible .catalog__title {
+  color: var(--gilt);
+}
+
+.catalog__excerpt {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--text-base);
+  opacity: 0.75;
+  max-width: 60ch;
+}
+
+.catalog-empty {
+  padding: var(--space-6) 0;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-5);
+  font-family: var(--font-utility);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.pagination a {
+  text-decoration: none;
+  color: var(--gilt);
+}
+
+/* ============================================================ work detail */
+
+.work-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-family: var(--font-utility);
+  font-size: var(--text-sm);
+  opacity: 0.75;
+  margin-top: var(--space-3);
+}
+
+.work-description {
+  font-size: var(--text-lg);
+  font-style: italic;
+  line-height: 1.6;
+  margin-top: var(--space-5);
+  max-width: var(--reading-width);
+}
+
+.toc__item {
+  border-top: 1px solid var(--rule-on-ink);
+}
+
+.toc__item:last-child {
+  border-bottom: 1px solid var(--rule-on-ink);
+}
+
+.toc__link {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  text-decoration: none;
+  color: var(--text-ink);
+}
+
+.toc__number {
+  font-family: var(--font-utility);
+  font-size: var(--text-sm);
+  opacity: 0.5;
+  min-width: 2ch;
+}
+
+.toc__title {
+  font-size: var(--text-lg);
+}
+
+.toc__link:hover .toc__title,
+.toc__link:focus-visible .toc__title {
+  color: var(--gilt);
+}
+
+/* ============================================================ chapter reading page */
+
+/*
+  The signature moment: the page itself becomes a lit manuscript page
+  within the dark shell. Scoped to `body.reading main` so the header
+  and footer stay put — you always know where the room's exits are.
+*/
+
+body.reading main {
+  background: var(--parchment);
+  color: var(--text-manuscript);
+  max-width: var(--reading-width);
+  padding: var(--space-6) var(--space-5) var(--space-8);
+  margin: var(--space-6) auto;
+  box-shadow:
+    0 30px 70px -30px var(--shadow-color),
+    0 0 0 1px rgb(180 134 63 / 25%);
+}
+
+body.reading .breadcrumb {
+  display: block;
+  font-family: var(--font-utility);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.65;
+  text-decoration: none;
+  margin-bottom: var(--space-3);
+}
+
+body.reading .breadcrumb:hover,
+body.reading .breadcrumb:focus-visible {
+  color: var(--gilt);
+  opacity: 1;
+}
+
+body.reading .chapter__title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+body.reading .ornament__rule {
+  opacity: 0.3;
+}
+
+.chapter__body {
+  font-size: 1.1875rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  margin-top: var(--space-5);
+}
+
+.chapter-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  font-family: var(--font-utility);
+  font-size: var(--text-sm);
+}
+
+.chapter-nav__link {
+  text-decoration: none;
+  color: var(--text-manuscript);
+  max-width: 45%;
+}
+
+.chapter-nav__link:hover,
+.chapter-nav__link:focus-visible {
+  color: var(--gilt);
+}
+
+.chapter-nav__label {
+  display: block;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+  margin-bottom: var(--space-1);
+}
+
+.chapter-nav__spacer {
+  flex: 1;
+}
+
+/* ============================================================ about */
+
+.about__body {
+  max-width: var(--reading-width);
+  font-size: var(--text-base);
+  line-height: 1.75;
+  margin-top: var(--space-5);
+}
+
+.about__body p + p {
+  margin-top: var(--space-4);
+}
+
+/* ============================================================ 404 */
+
+.not-found {
+  text-align: center;
+  padding: var(--space-10) 0;
+}
+
+.not-found__code {
+  font-family: var(--font-utility);
+  font-size: var(--text-sm);
+  letter-spacing: 0.2em;
+  color: var(--gilt);
+  text-transform: uppercase;
+}
+
+.not-found__title {
+  font-size: var(--text-2xl);
+  margin-top: var(--space-3);
+}
+
+.not-found__body {
+  margin-top: var(--space-3);
+  opacity: 0.8;
+}
+
+.not-found__links {
+  margin-top: var(--space-5);
+  display: flex;
+  gap: var(--space-4);
+  justify-content: center;
+  font-family: var(--font-utility);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.not-found__links a {
+  color: var(--gilt);
+  text-decoration: none;
+}
+
+/* ============================================================ responsive */
+
+@media (max-width: 40rem) {
+  :root {
+    --text-3xl: 2.25rem;
+    --text-2xl: 1.75rem;
+    --text-xl: 1.375rem;
+  }
+
+  main {
+    padding: var(--space-6) var(--space-4);
+  }
+
+  body.reading main {
+    margin: var(--space-4) var(--space-2);
+    padding: var(--space-5) var(--space-4) var(--space-6);
+  }
+
+  .chapter-nav {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .chapter-nav__link {
+    max-width: 100%;
+  }
+}
+
+/* ============================================================ motion */
 
 @media (prefers-reduced-motion: reduce) {
   * {

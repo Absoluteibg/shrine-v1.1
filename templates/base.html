@@ -5,22 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
-    <meta name="description" content="{% block meta_description %}A literary archive of novels, stories, poems, and essays.{% endblock %}">
+    <meta name="description" content="{% block meta_description %}A literary archive of novels, short stories, poems, and essays.{% endblock %}">
 
-    {# Phase 3 fills these in per-page (canonical URL, Open Graph tags). #}
-    {% block canonical %}{% endblock %}
-    {% block open_graph %}{% endblock %}
+    {# Canonical strips the query string automatically — paginated listing
+       pages (?page=2) canonicalize to their own clean path, not page 1,
+       since each page is genuinely distinct content. Override per-page
+       if a route ever needs something else. #}
+    {% block canonical %}
+    <link rel="canonical" href="{{ request.url.scheme }}://{{ request.url.netloc }}{{ request.url.path }}">
+    {% endblock %}
+
+    <meta property="og:site_name" content="{{ app_name }}">
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{{ self.meta_description() }}{% endblock %}">
+    <meta property="og:url" content="{{ request.url.scheme }}://{{ request.url.netloc }}{{ request.url.path }}">
+    {% block og_image %}{% endblock %}
 
     <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
     {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     <a class="skip-link" href="#main-content">Skip to content</a>
 
     <header class="site-header">
         <a class="site-header__brand" href="/">{{ app_name }}</a>
         <nav class="site-nav" aria-label="Primary">
-            {% block nav %}{% endblock %}
+            <a href="/novels" {% if nav_active == "novels" %}aria-current="page"{% endif %}>Novels</a>
+            <a href="/stories" {% if nav_active == "stories" %}aria-current="page"{% endif %}>Stories</a>
+            <a href="/poems" {% if nav_active == "poems" %}aria-current="page"{% endif %}>Poems</a>
+            <a href="/essays" {% if nav_active == "essays" %}aria-current="page"{% endif %}>Essays</a>
+            <a href="/about" {% if nav_active == "about" %}aria-current="page"{% endif %}>About</a>
         </nav>
     </header>
 

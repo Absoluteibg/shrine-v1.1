@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ work.title }} &mdash; {{ app_name }}{% endblock %}
+{% block meta_description %}{% if work.description %}{{ work.description|truncate(160) }}{% else %}{{ work.title }} &mdash; a {{ work.type.value }} on {{ app_name }}.{% endif %}{% endblock %}
+{% block og_type %}book{% endblock %}
+
+{% block content %}
+<span class="page-eyebrow">{{ work.type.value|capitalize }}</span>
+<h1 class="page-title">{{ work.title }}</h1>
+
+<div class="work-meta">
+    {% if work.published_at %}<span>Published {{ work.published_at.strftime('%d %B %Y') }}</span>{% endif %}
+    {% if work.tags %}<span>{{ work.tags|map(attribute='name')|join(', ') }}</span>{% endif %}
+</div>
+
+{% if work.description %}
+<p class="work-description">{{ work.description }}</p>
+{% endif %}
+
+<div class="ornament" aria-hidden="true">
+    <span class="ornament__rule"></span>
+    <span class="ornament__mark"></span>
+    <span class="ornament__rule"></span>
+</div>
+
+<h2 class="section-heading">Contents</h2>
+
+{% if chapters %}
+<ol class="toc">
+    {% for chapter in chapters %}
+    <li class="toc__item">
+        <a class="toc__link" href="/works/{{ work.slug }}/chapters/{{ chapter.slug }}">
+            <span class="toc__number">{{ "%02d"|format(chapter.chapter_number) }}</span>
+            <span class="toc__title">{{ chapter.title }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ol>
+{% else %}
+<p class="catalog-empty">No chapters have been published for this work yet.</p>
+{% endif %}
+{% endblock %}
