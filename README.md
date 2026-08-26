@@ -5,9 +5,10 @@ built as a modular monolith that can grow into a larger publishing
 platform without a rewrite. See [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 for the design rationale.
 
-**Status: Phase 1 — Foundation.** Config, database wiring, migrations,
-routing skeleton, and the template/static pipeline are in place and
-tested. No content model yet — that's Phase 2.
+**Status: Phase 2 — Content System.** Work / Chapter / Tag models,
+repositories, services, and the publishing state machine are in place
+and tested (48 tests). Not wired into any HTTP route yet — public reads
+(Phase 3) and the admin CMS (Phase 4) both consume this layer next.
 
 ## Requirements
 
@@ -44,6 +45,18 @@ uvicorn app.main:app --reload
 ```bash
 python -m pytest tests/ -v
 ```
+
+## Content model
+
+| Entity | Key fields | Notes |
+|---|---|---|
+| **Work** | `title`, `slug`, `type` (novel/story/poem/essay), `description`, `cover_image`, `status`, `published_at` | slug is stable after creation |
+| **Chapter** | `work_id`, `title`, `slug`, `content`, `chapter_number`, `status`, `published_at` | slug + chapter_number unique per work, not globally |
+| **Tag** | `name`, `slug` | many-to-many with Work via `work_tags` |
+
+Both Work and Chapter use the same publishing states: `draft` →
+`published` → `archived`, with rules enforced in
+`app/services/publishing.py`. See `ARCHITECTURE.md` for the details.
 
 ## Database migrations
 
@@ -88,8 +101,8 @@ tests/
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Foundation: config, DB, migrations, routing skeleton | ✅ done |
-| 2 | Content system: Work / Chapter / Tag, repositories, services | next |
-| 3 | Public website | planned |
+| 2 | Content system: Work / Chapter / Tag, repositories, services | ✅ done |
+| 3 | Public website | next |
 | 4 | Admin CMS + auth | planned |
 | 5 | Quality: validation, logging, security review, tests | planned |
 | 6 | Deployment | planned |

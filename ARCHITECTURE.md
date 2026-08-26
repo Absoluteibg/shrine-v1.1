@@ -60,7 +60,50 @@ never binary image data. That keeps the door open to swapping local
 disk for object storage + a CDN later by changing where a path resolves
 to, not the content model itself.
 
-## Scaling path (not built yet — for context)
+## Publishing states (Phase 2)
+
+Work and Chapter share one publishing vocabulary — DRAFT, PUBLISHED,
+ARCHIVED — and one set of transition rules, defined once in
+`app/services/publishing.py` rather than duplicated per entity:
+
+- DRAFT → PUBLISHED, PUBLISHED → DRAFT/ARCHIVED, ARCHIVED → DRAFT/PUBLISHED.
+- DRAFT → ARCHIVED is **not** allowed: ARCHIVED means "this was live,
+  then retired." A draft that was never published has nothing to
+  retire — delete it instead.
+- `published_at` is set the first time something becomes PUBLISHED and
+  preserved through every later transition, so unpublishing and
+  republishing doesn't lose the original publish date.
+
+Public visibility is a query-layer rule, not a router-layer one: a
+chapter is only reachable through `get_published_by_work_and_slug` when
+**both** it and its parent Work are PUBLISHED. An archived/draft work
+hides all of its chapters regardless of their own status.
+
+## Tag identity is the slug, not the name
+
+`TagRepository.get_or_create` looks up existing tags by slug, not by
+raw name string. "Nature" and "nature" both slugify to `nature` and
+resolve to the same row — first-seen casing wins as the display label.
+Deduping on the raw string instead would let the same Tag object end up
+twice in a Work's tag list, which fails at flush time (SQLAlchemy tries
+to insert the same `(work_id, tag_id)` row twice).
+
+## A SQLAlchemy enum gotcha we hit (and fixed)
+
+By default, SQLAlchemy's `Enum` type persists a Python enum's **name**
+(`"DRAFT"`), not its `.value` (`"draft"`) — easy to miss, since nothing
+errors until something relies on the mismatch. Combined with
+`create_constraint=True` (which adds a real `CHECK` constraint from the
+same values), the default behavior would have produced a `CHECK
+(status IN ('DRAFT','PUBLISHED','ARCHIVED'))` that silently disagreed
+with `server_default='draft'` — fine through the ORM, but a landmine
+for any future raw-SQL insert or backfill script. Both `status_enum_type()`
+(`app/models/enums.py`) and the `Work.type` column pass
+`values_callable` explicitly so the stored value, the `CHECK`
+constraint, and the API's JSON representation all agree on lowercase
+values.
+
+
 
 | Stage | Trigger | Change |
 |---|---|---|
@@ -73,10 +116,11 @@ Nothing in this table gets built preemptively. Each row requires a
 measured reason, per the project's development philosophy: build,
 measure, identify the actual bottleneck, fix that bottleneck.
 
-## What Phase 1 deliberately does not include
+## What's still deliberately missing
 
-- No domain models yet (`app/models` is an empty package) — added in
-  Phase 2 once real content requirements exist.
+- No HTTP routes for content yet — `app/routers/public.py` and
+  `admin.py` don't call into WorkService/ChapterService yet. That's
+  Phase 3 (public reads) and Phase 4 (admin writes, behind auth).
 - No auth — `app/routers/admin.py` is an empty router on purpose; a
   route is never added there without a login check already in front of it.
 - No finished visual design — `static/css/style.css` is a readable,

@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import app.models  # noqa: F401  registers all models on Base.metadata — see app/models/__init__.py
 from app.db.database import Base, get_db
 from app.main import app
 
