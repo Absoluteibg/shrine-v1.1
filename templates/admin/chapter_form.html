@@ -1,0 +1,94 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if chapter %}Edit {{ chapter.title }}{% else %}New chapter{% endif %} &mdash; {{ app_name }} Admin{% endblock %}
+
+{% block content %}
+<p class="admin-breadcrumb"><a href="/admin/works/{{ work.id }}/edit">{{ work.title }}</a></p>
+
+<div class="admin-section-header">
+    <h1 class="admin-page-title">
+        {% if chapter %}Edit chapter{% else %}New chapter{% endif %}
+    </h1>
+    {% if chapter %}
+    <span class="status-badge status-badge--{{ chapter.status.value }}">{{ chapter.status.value }}</span>
+    {% endif %}
+</div>
+
+{% if errors %}
+<div class="flash flash--error">Please fix the highlighted fields below.</div>
+{% endif %}
+
+<form method="post" action="{% if chapter %}/admin/chapters/{{ chapter.id }}/edit{% else %}/admin/works/{{ work.id }}/chapters/new{% endif %}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="form-field form-field--inline">
+        <div>
+            <label for="title">Title</label>
+            <input type="text" id="title" name="title" value="{{ form_values.title }}" required autofocus>
+            {% if errors.title %}<p class="form-error">{{ errors.title }}</p>{% endif %}
+        </div>
+        <div class="form-field--number">
+            <label for="chapter_number">Number</label>
+            <input type="number" id="chapter_number" name="chapter_number" min="1" step="1" value="{{ form_values.chapter_number }}" required>
+            {% if errors.chapter_number %}<p class="form-error">{{ errors.chapter_number }}</p>{% endif %}
+        </div>
+    </div>
+
+    {% if chapter %}
+    <div class="form-field">
+        <label>URL</label>
+        <p class="form-static">/works/{{ work.slug }}/chapters/{{ chapter.slug }}</p>
+    </div>
+    {% else %}
+    <div class="form-field">
+        <label for="slug">Custom URL slug <span class="form-hint">(optional &mdash; leave blank to generate from the title)</span></label>
+        <input type="text" id="slug" name="slug" value="{{ form_values.slug }}">
+        {% if errors.slug %}<p class="form-error">{{ errors.slug }}</p>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="form-field">
+        <label for="content">Content</label>
+        <textarea id="content" name="content" rows="24" class="form-textarea--reading">{{ form_values.content }}</textarea>
+        {% if errors.content %}<p class="form-error">{{ errors.content }}</p>{% endif %}
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">{% if chapter %}Save{% else %}Create draft{% endif %}</button>
+        <a class="btn btn--ghost" href="/admin/works/{{ work.id }}/edit">Cancel</a>
+    </div>
+</form>
+
+{% if chapter %}
+<div class="admin-actions-row">
+    {% if chapter.status.value == "draft" %}
+    <form method="post" action="/admin/chapters/{{ chapter.id }}/publish">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--primary btn--sm">Publish</button>
+    </form>
+    {% elif chapter.status.value == "published" %}
+    <form method="post" action="/admin/chapters/{{ chapter.id }}/unpublish">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--ghost btn--sm">Unpublish</button>
+    </form>
+    <form method="post" action="/admin/chapters/{{ chapter.id }}/archive">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--ghost btn--sm">Archive</button>
+    </form>
+    {% elif chapter.status.value == "archived" %}
+    <form method="post" action="/admin/chapters/{{ chapter.id }}/publish">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--primary btn--sm">Republish</button>
+    </form>
+    <form method="post" action="/admin/chapters/{{ chapter.id }}/unpublish">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--ghost btn--sm">Restore to draft</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/admin/chapters/{{ chapter.id }}/delete" data-confirm="Delete &ldquo;{{ chapter.title }}&rdquo;? This can't be undone.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--danger btn--sm">Delete chapter</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

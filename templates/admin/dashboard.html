@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard &mdash; {{ app_name }} Admin{% endblock %}
+
+{% block content %}
+<h1 class="admin-page-title">Dashboard</h1>
+
+<div class="stat-grid">
+    <a class="stat-tile" href="/admin/works?status=draft">
+        <span class="stat-tile__count">{{ counts.draft }}</span>
+        <span class="stat-tile__label">Draft</span>
+    </a>
+    <a class="stat-tile" href="/admin/works?status=published">
+        <span class="stat-tile__count">{{ counts.published }}</span>
+        <span class="stat-tile__label">Published</span>
+    </a>
+    <a class="stat-tile" href="/admin/works?status=archived">
+        <span class="stat-tile__count">{{ counts.archived }}</span>
+        <span class="stat-tile__label">Archived</span>
+    </a>
+</div>
+
+<div class="admin-section-header">
+    <h2>Recent works</h2>
+    <a class="btn btn--primary btn--sm" href="/admin/works/new">New work</a>
+</div>
+
+{% if recent_works %}
+<table class="admin-table">
+    <thead>
+        <tr><th>Title</th><th>Type</th><th>Status</th><th>Updated</th></tr>
+    </thead>
+    <tbody>
+        {% for work in recent_works %}
+        <tr>
+            <td><a href="/admin/works/{{ work.id }}/edit">{{ work.title }}</a></td>
+            <td>{{ work.type.value|capitalize }}</td>
+            <td><span class="status-badge status-badge--{{ work.status.value }}">{{ work.status.value }}</span></td>
+            <td>{{ work.updated_at.strftime('%d %b %Y') }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="admin-empty">No works yet. <a href="/admin/works/new">Create the first one.</a></p>
+{% endif %}
+{% endblock %}

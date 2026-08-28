@@ -1,0 +1,132 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if work %}Edit {{ work.title }}{% else %}New work{% endif %} &mdash; {{ app_name }} Admin{% endblock %}
+
+{% block content %}
+<div class="admin-section-header">
+    <h1 class="admin-page-title">
+        {% if work %}Edit work{% else %}New work{% endif %}
+    </h1>
+    {% if work %}
+    <span class="status-badge status-badge--{{ work.status.value }}">{{ work.status.value }}</span>
+    {% endif %}
+</div>
+
+{% if errors %}
+<div class="flash flash--error">Please fix the highlighted fields below.</div>
+{% endif %}
+
+<form method="post" action="{% if work %}/admin/works/{{ work.id }}/edit{% else %}/admin/works/new{% endif %}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="form-field">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" value="{{ form_values.title }}" required autofocus>
+        {% if errors.title %}<p class="form-error">{{ errors.title }}</p>{% endif %}
+    </div>
+
+    <div class="form-field">
+        <label for="work_type">Type</label>
+        <select id="work_type" name="work_type" required>
+            <option value="" disabled {% if not form_values.work_type %}selected{% endif %}>Choose a type&hellip;</option>
+            {% for t in work_types %}
+            <option value="{{ t.value }}" {% if form_values.work_type == t.value %}selected{% endif %}>{{ t.value|capitalize }}</option>
+            {% endfor %}
+        </select>
+        {% if errors.type %}<p class="form-error">{{ errors.type }}</p>{% endif %}
+    </div>
+
+    {% if work %}
+    <div class="form-field">
+        <label>URL</label>
+        <p class="form-static">/{{ segment }}/{{ work.slug }} <span class="form-hint">(fixed once created &mdash; editing the title won't change published links)</span></p>
+    </div>
+    {% else %}
+    <div class="form-field">
+        <label for="slug">Custom URL slug <span class="form-hint">(optional &mdash; leave blank to generate from the title)</span></label>
+        <input type="text" id="slug" name="slug" value="{{ form_values.slug }}">
+        {% if errors.slug %}<p class="form-error">{{ errors.slug }}</p>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="form-field">
+        <label for="description">Description <span class="form-hint">(shown as a short summary in listings)</span></label>
+        <textarea id="description" name="description" rows="3">{{ form_values.description }}</textarea>
+        {% if errors.description %}<p class="form-error">{{ errors.description }}</p>{% endif %}
+    </div>
+
+    <div class="form-field">
+        <label for="cover_image">Cover image path or URL <span class="form-hint">(optional)</span></label>
+        <input type="text" id="cover_image" name="cover_image" value="{{ form_values.cover_image }}" placeholder="/static/images/cover.jpg">
+        {% if errors.cover_image %}<p class="form-error">{{ errors.cover_image }}</p>{% endif %}
+    </div>
+
+    <div class="form-field">
+        <label for="tag_names">Tags <span class="form-hint">(comma-separated)</span></label>
+        <input type="text" id="tag_names" name="tag_names" value="{{ form_values.tag_names }}" placeholder="grief, summer, family">
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn--primary">{% if work %}Save{% else %}Create draft{% endif %}</button>
+        <a class="btn btn--ghost" href="/admin/works">Cancel</a>
+    </div>
+</form>
+
+{% if work %}
+<div class="admin-actions-row">
+    {% if work.status.value == "draft" %}
+    <form method="post" action="/admin/works/{{ work.id }}/publish">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--primary btn--sm">Publish</button>
+    </form>
+    {% elif work.status.value == "published" %}
+    <form method="post" action="/admin/works/{{ work.id }}/unpublish">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--ghost btn--sm">Unpublish</button>
+    </form>
+    <form method="post" action="/admin/works/{{ work.id }}/archive">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--ghost btn--sm">Archive</button>
+    </form>
+    {% elif work.status.value == "archived" %}
+    <form method="post" action="/admin/works/{{ work.id }}/publish">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--primary btn--sm">Republish</button>
+    </form>
+    <form method="post" action="/admin/works/{{ work.id }}/unpublish">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--ghost btn--sm">Restore to draft</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/admin/works/{{ work.id }}/delete" data-confirm="Delete &ldquo;{{ work.title }}&rdquo; and all of its chapters? This can't be undone.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn--danger btn--sm">Delete work</button>
+    </form>
+</div>
+
+<div class="admin-section-header">
+    <h2>Chapters</h2>
+    <a class="btn btn--primary btn--sm" href="/admin/works/{{ work.id }}/chapters/new">New chapter</a>
+</div>
+
+{% if chapters %}
+<table class="admin-table">
+    <thead>
+        <tr><th>#</th><th>Title</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for chapter in chapters %}
+        <tr>
+            <td>{{ chapter.chapter_number }}</td>
+            <td><a href="/admin/chapters/{{ chapter.id }}/edit">{{ chapter.title }}</a></td>
+            <td><span class="status-badge status-badge--{{ chapter.status.value }}">{{ chapter.status.value }}</span></td>
+            <td><a href="/admin/chapters/{{ chapter.id }}/edit">Edit</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="admin-empty">No chapters yet. <a href="/admin/works/{{ work.id }}/chapters/new">Add the first one.</a></p>
+{% endif %}
+{% endif %}
+{% endblock %}

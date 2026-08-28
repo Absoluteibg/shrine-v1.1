@@ -6,7 +6,7 @@ directly, so query logic — including what "published" means at the
 query level — lives in exactly one place.
 """
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import PublishStatus, WorkType
@@ -64,6 +64,15 @@ class WorkRepository:
         self, *, type: WorkType | None = None, limit: int = 50, offset: int = 0
     ) -> list[Work]:
         return self.list_all(status=PublishStatus.PUBLISHED, type=type, limit=limit, offset=offset)
+
+    def count_all(self, *, status: PublishStatus | None = None, type: WorkType | None = None) -> int:
+        """Row count without loading rows — used by the admin dashboard's status tiles."""
+        stmt = select(func.count()).select_from(Work)
+        if status is not None:
+            stmt = stmt.where(Work.status == status)
+        if type is not None:
+            stmt = stmt.where(Work.type == type)
+        return self.db.execute(stmt).scalar_one()
 
     def delete(self, work: Work) -> None:
         self.db.delete(work)

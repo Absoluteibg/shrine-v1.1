@@ -1,0 +1,458 @@
+/*
+  SHRINE admin — functional CMS styling.
+
+  Deliberately NOT the literary/editorial treatment from style.css — the
+  admin is a tool, not the showcase (see ARCHITECTURE.md). It reuses the
+  same color tokens (ink/gilt/parchment) for brand consistency, loaded
+  from style.css which is always linked alongside this file, plus one
+  functional addition: --danger, for destructive actions.
+*/
+
+:root {
+  --danger: #9b4a3f;
+  --danger-bg: rgb(155 74 63 / 15%);
+  --success-bg: rgb(180 134 63 / 15%);
+}
+
+body.admin {
+  font-family: var(--font-utility);
+  font-size: var(--text-base);
+}
+
+body.admin--centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--rule-on-ink);
+}
+
+.admin-header__brand {
+  font-family: var(--font-reading);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  color: var(--text-ink);
+}
+
+.admin-header__brand span {
+  color: var(--gilt);
+  font-family: var(--font-utility);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-left: var(--space-2);
+}
+
+.admin-nav {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  flex: 1;
+}
+
+.admin-nav a {
+  text-decoration: none;
+  color: var(--text-ink);
+  opacity: 0.75;
+}
+
+.admin-nav a:hover,
+.admin-nav a:focus-visible {
+  opacity: 1;
+  color: var(--gilt);
+}
+
+.admin-header__logout {
+  margin: 0;
+}
+
+/* ----------------------------------------------------------------- main */
+
+.admin-main {
+  max-width: var(--wide-width);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5);
+}
+
+.admin-page-title {
+  font-family: var(--font-reading);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+}
+
+.admin-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-6) 0 var(--space-4);
+}
+
+.admin-section-header h1,
+.admin-section-header h2 {
+  font-family: var(--font-reading);
+}
+
+.admin-section-header h2 {
+  font-size: var(--text-xl);
+}
+
+.admin-breadcrumb {
+  font-size: var(--text-sm);
+  opacity: 0.7;
+}
+
+.admin-breadcrumb a {
+  color: var(--gilt);
+  text-decoration: none;
+}
+
+.admin-empty {
+  padding: var(--space-5) 0;
+  opacity: 0.7;
+  font-style: italic;
+  font-family: var(--font-reading);
+}
+
+/* -------------------------------------------------------------- flashes */
+
+.flash-stack {
+  max-width: var(--wide-width);
+  margin: var(--space-4) auto 0;
+  padding: 0 var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.flash {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  border-left: 3px solid var(--gilt);
+  background: var(--success-bg);
+}
+
+.flash--error {
+  border-left-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* ------------------------------------------------------------- stat grid */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.stat-tile {
+  display: block;
+  padding: var(--space-4);
+  background: var(--ink-raised);
+  text-decoration: none;
+  color: var(--text-ink);
+  border: 1px solid var(--rule-on-ink);
+}
+
+.stat-tile:hover,
+.stat-tile:focus-visible {
+  border-color: var(--gilt);
+}
+
+.stat-tile__count {
+  display: block;
+  font-family: var(--font-reading);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+}
+
+.stat-tile__label {
+  display: block;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.7;
+  margin-top: var(--space-1);
+}
+
+/* -------------------------------------------------------------- filters */
+
+.filter-bar {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  border-bottom: 1px solid var(--rule-on-ink);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.filter-bar a {
+  text-decoration: none;
+  color: var(--text-ink);
+  opacity: 0.6;
+}
+
+.filter-bar a[aria-current="page"],
+.filter-bar a:hover {
+  opacity: 1;
+  color: var(--gilt);
+}
+
+/* ---------------------------------------------------------------- table */
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.admin-table th {
+  text-align: left;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--rule-on-ink);
+}
+
+.admin-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--rule-on-ink);
+}
+
+.admin-table a {
+  color: var(--text-ink);
+  text-decoration: none;
+}
+
+.admin-table a:hover {
+  color: var(--gilt);
+}
+
+/* ---------------------------------------------------------- status badge */
+
+.status-badge {
+  display: inline-block;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.15em 0.6em;
+  border: 1px solid currentColor;
+  opacity: 0.85;
+}
+
+.status-badge--draft {
+  color: var(--text-ink);
+  opacity: 0.6;
+}
+
+.status-badge--published {
+  color: var(--gilt);
+}
+
+.status-badge--archived {
+  color: var(--danger);
+}
+
+/* ----------------------------------------------------------------- form */
+
+.admin-form {
+  max-width: var(--reading-width);
+  margin-top: var(--space-4);
+}
+
+.form-field {
+  margin-bottom: var(--space-4);
+}
+
+.form-field--inline {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.form-field--inline > div {
+  flex: 1;
+}
+
+.form-field--number {
+  flex: 0 0 7rem;
+}
+
+.form-field label {
+  display: block;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-1);
+}
+
+.form-hint {
+  opacity: 0.6;
+  font-weight: normal;
+}
+
+.form-static {
+  font-size: var(--text-sm);
+  opacity: 0.75;
+  margin: 0;
+}
+
+.form-field input[type="text"],
+.form-field input[type="password"],
+.form-field input[type="number"],
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--ink-raised);
+  border: 1px solid var(--rule-on-ink);
+  color: var(--text-ink);
+  font-family: inherit;
+  font-size: var(--text-base);
+}
+
+.form-field textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.form-textarea--reading {
+  font-family: var(--font-reading);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+
+.form-error {
+  color: var(--danger);
+  font-size: var(--text-sm);
+  margin: var(--space-1) 0 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.admin-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--rule-on-ink);
+}
+
+.admin-actions-row form {
+  margin: 0;
+}
+
+/* --------------------------------------------------------------- buttons */
+
+.btn {
+  display: inline-block;
+  font-family: var(--font-utility);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: none;
+}
+
+.btn--primary {
+  background: var(--gilt);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.btn--primary:hover,
+.btn--primary:focus-visible {
+  opacity: 0.9;
+}
+
+.btn--ghost {
+  border-color: var(--rule-on-ink);
+  color: var(--text-ink);
+}
+
+.btn--ghost:hover,
+.btn--ghost:focus-visible {
+  border-color: var(--gilt);
+  color: var(--gilt);
+}
+
+.btn--danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn--danger:hover,
+.btn--danger:focus-visible {
+  background: var(--danger);
+  color: var(--text-ink);
+}
+
+.btn--sm {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: var(--space-2) var(--space-3);
+}
+
+/* ------------------------------------------------------------ login card */
+
+.login-card {
+  width: 100%;
+  max-width: 22rem;
+  padding: var(--space-6) var(--space-5);
+  background: var(--ink-raised);
+  border: 1px solid var(--rule-on-ink);
+}
+
+.login-card__mark {
+  display: block;
+  font-family: var(--font-utility);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--gilt);
+}
+
+.login-card__title {
+  font-family: var(--font-reading);
+  font-size: var(--text-xl);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 40rem) {
+  .admin-header {
+    flex-wrap: wrap;
+  }
+
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-field--inline {
+    flex-direction: column;
+  }
+
+  .form-field--number {
+    flex: 1;
+  }
+}

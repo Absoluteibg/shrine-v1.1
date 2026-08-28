@@ -5,9 +5,9 @@ built as a modular monolith that can grow into a larger publishing
 platform without a rewrite. See [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 for the design rationale.
 
-**Status: Phase 3 — Public Website.** The full read-only public site is
-live: home, about, four type listings, work detail, and the chapter
-reading page, plus sitemap.xml/robots.txt. 62 tests passing.
+**Status: Phase 4 — Admin CMS.** Session-based auth, CSRF protection,
+a dashboard, and full Work/Chapter CRUD with publish/archive/delete are
+live behind a single admin account. 107 tests passing.
 
 ## Requirements
 
@@ -56,6 +56,37 @@ python -m pytest tests/ -v
 Both Work and Chapter use the same publishing states: `draft` →
 `published` → `archived`, with rules enforced in
 `app/services/publishing.py`. See `ARCHITECTURE.md` for the details.
+
+## Admin CMS
+
+Visit `/admin` and log in. **Dev default: username `admin`, password
+`changeme123`.** Change this before deploying anywhere real:
+
+```bash
+python -c "import bcrypt; print(bcrypt.hashpw(b'your-real-password', bcrypt.gensalt()).decode())"
+```
+
+Put the output in `.env` as `ADMIN_PASSWORD_HASH` (and set `ADMIN_USERNAME`
+if you want something other than `admin`). The app refuses to start
+with the dev-only default when `ENV=production`.
+
+| Route | Purpose |
+|---|---|
+| `/admin/login` | Sign in (rate-limited: 5 failed attempts locks out for 15 min, per IP) |
+| `/admin` | Dashboard — status counts, recent works |
+| `/admin/works` | All works, any status, filterable |
+| `/admin/works/new`, `/admin/works/{id}/edit` | Create/edit a work; publish, archive, delete, and the chapter list live on the edit page |
+| `/admin/works/{id}/chapters/new`, `/admin/chapters/{id}/edit` | Create/edit a chapter; publish, archive, delete live on the edit page |
+
+Security notes:
+- Sessions are signed cookies (`SECRET_KEY`), not a server-side store —
+  no session table, no Redis.
+- Every mutating form carries a CSRF token, checked against the session
+  before anything happens.
+- The login rate limiter is in-memory and per-process — see
+  `app/core/security.py` and ARCHITECTURE.md for the scaling caveat.
+- `templates/about.html` still has placeholder copy — replace it with
+  your own bio.
 
 ## Public site
 
@@ -117,7 +148,7 @@ tests/
 | 1 | Foundation: config, DB, migrations, routing skeleton | ✅ done |
 | 2 | Content system: Work / Chapter / Tag, repositories, services | ✅ done |
 | 3 | Public website | ✅ done |
-| 4 | Admin CMS + auth | next |
-| 5 | Quality: validation, logging, security review, tests | planned |
+| 4 | Admin CMS + auth | ✅ done |
+| 5 | Quality: validation, logging, security review, tests | next |
 | 6 | Deployment | planned |
 | 7 | Real-world scaling (only as measured need appears) | planned |

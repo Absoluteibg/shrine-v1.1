@@ -23,6 +23,7 @@ from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler as default_http_exception_handler
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import get_settings
 from app.core.templating import templates
@@ -41,12 +42,17 @@ logger = logging.getLogger("shrine")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Fail loudly on startup rather than silently running an insecure
-    # production deployment — a wrong config here should never reach
+    # production deployment — wrong config here should never reach
     # "the server is up and serving traffic".
     if settings.is_production and settings.SECRET_KEY == "dev-only-insecure-secret-change-me":
         raise RuntimeError(
             "SECRET_KEY is still the development default. Set a real "
             "SECRET_KEY environment variable before running in production."
+        )
+    if settings.is_production and settings.uses_dev_only_admin_password:
+        raise RuntimeError(
+            "ADMIN_PASSWORD_HASH is still the development default. Generate a real "
+            "one (see README.md) before running in production."
         )
 
     logger.info(
@@ -65,6 +71,37 @@ app = FastAPI(
     debug=settings.DEBUG,
     lifespan=lifespan,
 )
+
+# Signed-cookie sessions for admin login. Only ever set for requests
+# that actually touch session data (Starlette skips the Set-Cookie
+# header when the session dict is empty) — anonymous visits to the
+# public site never receive a cookie.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    session_cookie=settings.SESSION_COOKIE_NAME,
+    max_age=settings.SESSION_MAX_AGE_SECONDS,
+    same_site="lax",
+    https_only=settings.is_production,
+)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # No inline <script>/<style> or onclick-style attributes exist
+    # anywhere in the templates, so this stays strict rather than
+    # carrying a standing 'unsafe-inline' exception. static/js/admin.js
+    # attaches its confirm() handlers via addEventListener for exactly
+    # this reason.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    )
+    return response
+
 
 app.mount("/static", StaticFiles(directory=str(settings.STATIC_DIR)), name="static")
 

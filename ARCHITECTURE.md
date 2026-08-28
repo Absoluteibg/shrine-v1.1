@@ -133,6 +133,80 @@ every time. Worth knowing if a future test starts failing for a reason
 that doesn't match what the test itself does — check whether it's
 seeing another test's data before assuming the application is wrong.
 
+## Admin auth (Phase 4)
+
+SHRINE has exactly one admin — the site's author — configured entirely
+through environment variables (`ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`).
+There's no user table, no registration flow, no roles. That's a
+deliberate scope decision, not a shortcut: a real multi-user system
+(accounts, permissions, password resets) is a different, bigger
+feature that this site has no current need for. If SHRINE ever needs
+more than one editor, that's the point to add a `users` table and
+migrate the single env-var account into it — not before.
+
+Sessions are **signed cookies** (Starlette's `SessionMiddleware`,
+keyed on `SECRET_KEY`), not a server-side session store. There's
+nothing to look up on each request and nothing to clean up — the
+tradeoff is that a session can't be remotely revoked before it expires
+(`SESSION_MAX_AGE_SECONDS`, 7 days by default). For one admin account,
+that's the right tradeoff; it stops being one long before a `users`
+table would be needed anyway.
+
+`require_admin` (`app/core/security.py`) is attached explicitly via
+`dependencies=[Depends(require_admin)]` on every protected route,
+rather than once at the router level — consistent with this codebase's
+general preference for explicit over clever (see `app/routers/public.py`'s
+eight explicit type routes instead of one dynamic one). The cost is
+repetition; the benefit is that "is this route protected" is answered
+by looking at the route itself, not by tracing router configuration.
+
+CSRF tokens are generated once per session (`get_csrf_token`) and
+checked with `secrets.compare_digest` on every POST. Because the
+session cookie itself is already tamper-proof (signed with
+`SECRET_KEY`), the CSRF token doesn't need its own signing — it only
+needs to be unguessable and tied to the session, which storing it in
+the session already guarantees.
+
+The login rate limiter (`app/core/security.py`) is a plain in-memory
+dict, intentionally. It's a Stage-1 (single-process) mitigation — see
+the scaling table below. If SHRINE is ever horizontally scaled behind
+a load balancer, each instance would track lockouts independently,
+which weakens it. That's a known, documented limitation, not a silent
+one; the fix at that point is a shared store, introduced only when
+that scaling stage actually arrives.
+
+## Security headers
+
+`app/main.py` sets `X-Content-Type-Options`, `X-Frame-Options`,
+`Referrer-Policy`, and a `Content-Security-Policy` of `default-src
+'self'` on every response. That CSP has no `'unsafe-inline'`
+exception, which is why `static/js/admin.js` attaches its delete
+confirmations via `addEventListener` instead of `onsubmit="..."`
+attributes — inline event handlers would be silently blocked by the
+policy above. If a future page genuinely needs inline script/style,
+that's a deliberate, visible change to the CSP, not a workaround.
+
+## Two bugs caught while building the admin CMS
+
+**Naive pluralization.** An early version of the work-edit page built
+its "existing URL" display as `/{{ work.type.value }}s/{{ work.slug }}`
+— which renders "story" as "storys". Fixed by reusing
+`public.py`'s actual `segment_for()` mapping instead of re-deriving
+(and getting wrong) the same logic a second time. Worth remembering:
+anywhere a URL segment is displayed, it should come from the one
+function that owns that mapping, never be reconstructed inline.
+
+**A flash-message test bug.** A test created a work, then asserted its
+title was absent from a *different, filtered* listing page — and
+failed, even though the filter itself worked correctly. The title was
+present, but as part of the one-time "'X' created as a draft" flash
+message, still queued because the test jumped straight to the listing
+without rendering an intermediate page (flashes are popped by whichever
+template renders next, not tied to a specific route). Fixed the test,
+not the app. Worth knowing about flash-message systems generally: a
+broad "is this text present" assertion is vulnerable to unrelated
+one-time UI state, not just to real data.
+
 ## Scaling path (not built yet — for context)
 
 | Stage | Trigger | Change |
@@ -148,10 +222,14 @@ measure, identify the actual bottleneck, fix that bottleneck.
 
 ## What's still deliberately missing
 
-- No admin routes yet — `app/routers/admin.py` is an empty router on
-  purpose; a route is never added there without a login check already
-  in front of it. That's Phase 4.
+- No comprehensive input-sanitization/security review pass yet — the
+  individual pieces (CSRF, password hashing, security headers, output
+  escaping via Jinja autoescape) are in place, but a dedicated Phase 5
+  pass is still the right place to review them as a whole rather than
+  trusting they compose correctly by construction.
 - No author bio content — `templates/about.html` ships with bracketed
   placeholder copy; it's meant to be edited directly, not generated.
-- No image handling yet — `cover_image` exists on the Work model but
-  nothing uploads or renders one. Add when there's an actual cover to show.
+- No image handling yet — `cover_image` exists on the Work model and
+  the admin form accepts a path/URL, but nothing uploads or validates
+  an actual file. Add when there's a real cover to show.
+- No deployment docs yet — that's Phase 6.

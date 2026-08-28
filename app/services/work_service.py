@@ -64,6 +64,9 @@ class WorkService:
     ) -> list[Work]:
         return self.works.list_published(type=type, limit=limit, offset=offset)
 
+    def count_by_status(self) -> dict[PublishStatus, int]:
+        return {status: self.works.count_all(status=status) for status in PublishStatus}
+
     # --------------------------------------------------------------- writes
 
     def create_work(self, data: WorkCreate) -> Work:

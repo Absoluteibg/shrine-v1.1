@@ -1,0 +1,37 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Works &mdash; {{ app_name }} Admin{% endblock %}
+
+{% block content %}
+<div class="admin-section-header">
+    <h1 class="admin-page-title">Works</h1>
+    <a class="btn btn--primary btn--sm" href="/admin/works/new">New work</a>
+</div>
+
+<nav class="filter-bar" aria-label="Filter by status">
+    <a href="/admin/works" {% if not status_filter %}aria-current="page"{% endif %}>All</a>
+    <a href="/admin/works?status=draft" {% if status_filter and status_filter.value == "draft" %}aria-current="page"{% endif %}>Draft</a>
+    <a href="/admin/works?status=published" {% if status_filter and status_filter.value == "published" %}aria-current="page"{% endif %}>Published</a>
+    <a href="/admin/works?status=archived" {% if status_filter and status_filter.value == "archived" %}aria-current="page"{% endif %}>Archived</a>
+</nav>
+
+{% if works %}
+<table class="admin-table">
+    <thead>
+        <tr><th>Title</th><th>Type</th><th>Status</th><th>Updated</th></tr>
+    </thead>
+    <tbody>
+        {% for work in works %}
+        <tr>
+            <td><a href="/admin/works/{{ work.id }}/edit">{{ work.title }}</a></td>
+            <td>{{ work.type.value|capitalize }}</td>
+            <td><span class="status-badge status-badge--{{ work.status.value }}">{{ work.status.value }}</span></td>
+            <td>{{ work.updated_at.strftime('%d %b %Y') }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="admin-empty">Nothing here yet.</p>
+{% endif %}
+{% endblock %}

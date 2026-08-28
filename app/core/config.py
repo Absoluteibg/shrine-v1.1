@@ -23,6 +23,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # assets regardless of the working directory the app is launched from.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# bcrypt hash of "changeme123" — a DEV-ONLY default so `uvicorn --reload`
+# works immediately without setup friction. app/main.py refuses to start
+# with this hash still in place when ENV=production (see the lifespan
+# startup check), the same pattern already used for SECRET_KEY.
+_DEV_ONLY_ADMIN_PASSWORD_HASH = "$2b$12$nrnDVkBVABmXOcjwgegPDOuu8z7xxYVHMephKk2kCWmEj8hYtfjE."
+
 
 class Settings(BaseSettings):
     # --- General ---
@@ -39,10 +45,20 @@ class Settings(BaseSettings):
     DATABASE_URL: str = f"sqlite:///{BASE_DIR / 'shrine.db'}"
 
     # --- Security ---
-    # Used later for session signing / CSRF tokens once the admin CMS
-    # (Phase 4) is built. Required with no default in production so a
-    # deployment can never silently run with a predictable secret.
+    # Used for session signing (admin login) and CSRF tokens.
+    # Required with no default in production so a deployment can never
+    # silently run with a predictable secret.
     SECRET_KEY: str = "dev-only-insecure-secret-change-me"
+
+    # SHRINE has exactly one admin — the site's author. There's no
+    # registration flow or user table; the account lives entirely in
+    # environment variables. See README.md for how to generate a real
+    # ADMIN_PASSWORD_HASH.
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD_HASH: str = _DEV_ONLY_ADMIN_PASSWORD_HASH
+
+    SESSION_COOKIE_NAME: str = "shrine_session"
+    SESSION_MAX_AGE_SECONDS: int = 60 * 60 * 24 * 7  # 7 days
 
     # --- Paths ---
     TEMPLATES_DIR: Path = BASE_DIR / "templates"
@@ -58,6 +74,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENV == "production"
+
+    @property
+    def uses_dev_only_admin_password(self) -> bool:
+        return self.ADMIN_PASSWORD_HASH == _DEV_ONLY_ADMIN_PASSWORD_HASH
 
 
 @lru_cache

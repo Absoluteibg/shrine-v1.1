@@ -2,6 +2,10 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 python-multipart==0.0.20   # required for form parsing (admin forms, file uploads)
+itsdangerous==2.2.0        # required by Starlette SessionMiddleware (signs the session cookie)
+
+# --- Auth ---
+bcrypt==4.2.1               # password hashing for the single admin account
 
 # --- Templating ---
 jinja2==3.1.5
