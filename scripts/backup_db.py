@@ -1,29 +1,38 @@
 #!/usr/bin/env python3
 """
-Back up SHRINE's SQLite database.
+Back up SHRINE's database.
 
-Uses SQLite's own online backup API (via Python's sqlite3 module),
-which is safe to run even while the app is actively serving requests —
-it copies page-by-page under SQLite's own locking, unlike a plain file
-copy (`cp shrine.db backup.db`), which risks grabbing a half-written
-page if a write happens mid-copy.
+Dispatches based on DATABASE_URL's scheme — the same "one command
+regardless of environment" pattern `alembic upgrade head` already uses:
 
-This script is deliberately SQLite-specific — the Stage 1 backup
-strategy for this app (see ARCHITECTURE.md's scaling table). Migrating
-to PostgreSQL later means switching to `pg_dump` or your host's managed
-backup/snapshot tooling instead; this script doesn't grow to cover
-that, it stops applying.
+  - sqlite:///...   -> SQLite's own online backup API (via Python's
+                       sqlite3 module). Safe to run while the app is
+                       live: copies page-by-page under SQLite's own
+                       locking, unlike a plain file copy, which risks
+                       grabbing a half-written page mid-copy.
+  - postgresql://... -> `pg_dump` in custom format (-Fc): compressed,
+                        and restorable selectively/in parallel via
+                        `pg_restore`. Requires the PostgreSQL client
+                        tools to be installed (`pg_dump` on PATH) —
+                        these are NOT a Python dependency, so they
+                        aren't in requirements.txt; install via your
+                        OS package manager (e.g. `apt install
+                        postgresql-client`) if missing.
 
 Usage:
     python scripts/backup_db.py
-    python scripts/backup_db.py --keep 10   # also prune older backups, keeping the 10 most recent
+    python scripts/backup_db.py --keep 10   # also prune older backups of the SAME type, keeping the 10 most recent
 """
 
 import argparse
+import os
+import shutil
 import sqlite3
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Make "app" importable when this script is run directly (it isn't run
 # as part of the app's own package) — same pattern as alembic/env.py.
@@ -33,6 +42,9 @@ sys.path.append(str(PROJECT_ROOT))
 from app.core.config import get_settings  # noqa: E402
 
 BACKUP_DIR = PROJECT_ROOT / "backups"
+
+
+# ------------------------------------------------------------------ SQLite
 
 
 def _sqlite_path_from_url(database_url: str) -> Path:
@@ -48,13 +60,6 @@ def _sqlite_path_from_url(database_url: str) -> Path:
     resolving to "/shrine.db" at the filesystem root — very wrong).
     """
     prefix = "sqlite:///"
-    if not database_url.startswith(prefix):
-        raise ValueError(
-            f"DATABASE_URL is not SQLite ({database_url!r}). This script only backs up SQLite "
-            "databases — for PostgreSQL, use `pg_dump` or your host's managed backup/snapshot "
-            "tooling instead."
-        )
-
     remainder = database_url[len(prefix) :]
     if remainder.startswith("/"):
         return Path(remainder).resolve()  # was 4 slashes total -> already absolute
@@ -67,20 +72,15 @@ def _sqlite_path_from_url(database_url: str) -> Path:
     return (PROJECT_ROOT / remainder).resolve()
 
 
-def backup(keep: int | None = None) -> Path:
-    settings = get_settings()
-    source_path = _sqlite_path_from_url(settings.DATABASE_URL)
-
+def _backup_sqlite(database_url: str) -> Path:
+    source_path = _sqlite_path_from_url(database_url)
     if not source_path.exists():
         raise FileNotFoundError(
             f"No database found at {source_path}. Nothing to back up yet — "
             "run `alembic upgrade head` first if this is a fresh setup."
         )
 
-    BACKUP_DIR.mkdir(exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    dest_path = BACKUP_DIR / f"shrine-{timestamp}.db"
-
+    dest_path = BACKUP_DIR / f"shrine-{_timestamp()}.db"
     source_conn = sqlite3.connect(str(source_path))
     dest_conn = sqlite3.connect(str(dest_path))
     try:
@@ -89,17 +89,101 @@ def backup(keep: int | None = None) -> Path:
         dest_conn.close()
         source_conn.close()
 
-    size_kb = dest_path.stat().st_size / 1024
-    print(f"Backed up {source_path} -> {dest_path} ({size_kb:.1f} KB)")
+    print(f"Backed up {source_path} -> {dest_path} ({_size_kb(dest_path)} KB)")
+    return dest_path
+
+
+# ---------------------------------------------------------------- Postgres
+
+
+def _parse_postgres_url(database_url: str) -> dict:
+    # Strip the SQLAlchemy-specific driver suffix (+psycopg2) — libpq
+    # (which pg_dump uses) only understands the plain postgresql:// scheme.
+    normalized = database_url.replace("postgresql+psycopg2", "postgresql")
+    parsed = urlparse(normalized)
+    return {
+        "host": parsed.hostname or "localhost",
+        "port": str(parsed.port or 5432),
+        "user": parsed.username or "",
+        "password": parsed.password or "",
+        "dbname": parsed.path.lstrip("/"),
+    }
+
+
+def _backup_postgres(database_url: str) -> Path:
+    if shutil.which("pg_dump") is None:
+        raise RuntimeError(
+            "pg_dump not found on PATH. Install the PostgreSQL client tools "
+            "(e.g. `apt install postgresql-client` / `brew install postgresql`) and try again."
+        )
+
+    conn = _parse_postgres_url(database_url)
+    dest_path = BACKUP_DIR / f"shrine-pg-{_timestamp()}.dump"
+
+    # Password via environment, never on the command line — command-line
+    # arguments are visible to other local users via `ps`; environment
+    # variables passed only to this one subprocess are not.
+    env = os.environ.copy()
+    if conn["password"]:
+        env["PGPASSWORD"] = conn["password"]
+
+    cmd = [
+        "pg_dump",
+        "-h", conn["host"],
+        "-p", conn["port"],
+        "-U", conn["user"],
+        "-Fc",  # custom format: compressed, supports selective/parallel restore via pg_restore
+        "-f", str(dest_path),
+        conn["dbname"],
+    ]  # fmt: skip
+
+    try:
+        subprocess.run(cmd, env=env, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        dest_path.unlink(missing_ok=True)  # don't leave a zero-byte/partial dump behind
+        raise RuntimeError(f"pg_dump failed: {exc.stderr.strip()}") from exc
+
+    print(f"Backed up {conn['dbname']}@{conn['host']} -> {dest_path} ({_size_kb(dest_path)} KB)")
+    return dest_path
+
+
+# -------------------------------------------------------------- dispatch
+
+
+def _timestamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+
+
+def _size_kb(path: Path) -> str:
+    return f"{path.stat().st_size / 1024:.1f}"
+
+
+def backup(keep: int | None = None) -> Path:
+    settings = get_settings()
+    database_url = settings.DATABASE_URL
+    BACKUP_DIR.mkdir(exist_ok=True)
+
+    if database_url.startswith("sqlite:///"):
+        dest_path = _backup_sqlite(database_url)
+        pattern = "shrine-????????-??????.db"  # excludes shrine-pg-*.dump
+    elif database_url.startswith(("postgresql://", "postgresql+psycopg2://", "postgres://")):
+        dest_path = _backup_postgres(database_url)
+        pattern = "shrine-pg-*.dump"
+    else:
+        raise ValueError(
+            f"Don't know how to back up DATABASE_URL {database_url!r} — only sqlite:// and "
+            "postgresql:// are supported."
+        )
 
     if keep is not None:
-        _prune_old_backups(keep)
+        _prune_old_backups(keep, pattern)
 
     return dest_path
 
 
-def _prune_old_backups(keep: int) -> None:
-    backups = sorted(BACKUP_DIR.glob("shrine-*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+def _prune_old_backups(keep: int, pattern: str) -> None:
+    """Keep the `keep` most recently modified backups matching `pattern`, deleting the rest."""
+    backups = sorted(BACKUP_DIR.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
     for stale in backups[keep:]:
         stale.unlink()
         print(f"Removed old backup: {stale.name}")
@@ -112,7 +196,7 @@ def main() -> None:
 
     try:
         backup(keep=args.keep)
-    except (ValueError, FileNotFoundError) as exc:
+    except (ValueError, FileNotFoundError, RuntimeError) as exc:
         print(f"Backup failed: {exc}", file=sys.stderr)
         sys.exit(1)
 

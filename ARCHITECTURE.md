@@ -316,26 +316,93 @@ based on the actual convention instead. Covered directly in
 `tests/test_backup_script.py`, including the exact case that would have
 been silently wrong.
 
-## Scaling path (not built yet — for context)
+## Phase 6: PostgreSQL migration (Stage 2)
 
-| Stage | Trigger | Change |
-|---|---|---|
-| 1 (now) | — | FastAPI + SQLite + local media |
-| 2 | Real traffic needs it | PostgreSQL + object storage + CDN |
-| 3 | Measured bottleneck | Load balancer + multiple app instances |
-| 4 | Measured bottleneck | Caching / background workers / search infra |
+The project brief's own architecture principle, cashed in: *"The
+application must be designed so SQLite can later be replaced by
+PostgreSQL with minimal changes."* This phase tested that claim for
+real rather than trusting it — every decision below was made
+specifically to make this migration boring, going back to Phase 1.
 
-Nothing in this table gets built preemptively. Each row requires a
-measured reason, per the project's development philosophy: build,
-measure, identify the actual bottleneck, fix that bottleneck.
+**What actually changed:** one dependency (`psycopg2-binary`) and one
+value (`DATABASE_URL`). Nothing in `app/models`, `app/repositories`,
+`app/services`, `app/routers`, or any template was touched.
+
+**What made that possible, decided long before this phase:**
+- `app/db/database.py`'s only SQLite-specific line
+  (`check_same_thread`) is conditional on the URL scheme — meaningless
+  and unused for Postgres.
+- Every enum column (`Work.type`, `Work.status`, `Chapter.status`) uses
+  `native_enum=False` — VARCHAR + CHECK, not a native SQLite or
+  Postgres enum type — specifically because native Postgres enums are
+  awkward to alter later (see the Phase 2 note on this). Verified now:
+  `\d works` against the real Postgres schema shows exactly the
+  `CHECK (status::text = ANY (ARRAY['draft', 'published',
+  'archived']...))` constraint this was designed to produce.
+- No raw SQL exists anywhere in the codebase (confirmed by grep in
+  Phase 5) — every query goes through SQLAlchemy, which handles the
+  dialect differences (`SERIAL` vs `AUTOINCREMENT`, `TIMESTAMP WITH
+  TIME ZONE` vs SQLite's untyped storage, etc.) automatically.
+- Alembic's migrations use portable operations (`String`, `Text`,
+  `ForeignKey(ondelete="CASCADE")`, `UniqueConstraint`, `Index`) with
+  no SQLite-specific `batch_alter_table` recipes — both existing
+  migrations applied to a fresh PostgreSQL 16 database with no edits.
+
+**How it was verified** (not just asserted): a real PostgreSQL 16
+server, both existing Alembic migrations applied cleanly, the full
+158-test suite run against it end-to-end (`TEST_DATABASE_URL`, see
+below), a complete manual content lifecycle exercised through live
+HTTP (login → create work → create chapter → publish → visible on the
+public site → correct in the sitemap), the XSS-escaping tests re-run
+against Postgres-backed rendering, and a real `pg_dump` backup
+restored into a fresh database with `pg_restore` to confirm the data
+round-trips correctly.
+
+**Test infrastructure:** `tests/conftest.py`'s `test_engine` fixture
+now branches on a `TEST_DATABASE_URL` environment variable. Unset
+(default): the original fast, zero-dependency temp-SQLite-file-per-test
+behavior, untouched. Set to a Postgres URL: the identical test suite
+runs against that server instead, using `create_all`/`drop_all` per
+test for equivalent isolation (a fresh schema per test, just via DDL
+against a shared server rather than a fresh file). This is a
+verification path, not a CI default — SQLite stays the fast path for
+everyday iteration; Postgres is there to prove production parity on
+demand.
+
+**Backup script generalized, not replaced:** `scripts/backup_db.py`
+now dispatches on `DATABASE_URL`'s scheme — SQLite's online backup API
+as before, or `pg_dump -Fc` for Postgres, using the same `--keep`
+pruning and the same `backups/` directory (different filename pattern
+per type: `shrine-<ts>.db` vs `shrine-pg-<ts>.dump`, so pruning one
+type never touches the other). One subtlety handled deliberately: the
+Postgres password is passed to `pg_dump` via the `PGPASSWORD`
+environment variable, never as a command-line argument — CLI args are
+visible to other local users via `ps`, environment variables scoped to
+one subprocess are not.
+
+## Scaling path
+
+| Stage | Trigger | Change | Status |
+|---|---|---|---|
+| 1 | — | FastAPI + SQLite + local media | done (Phase 1) |
+| 2 | Real traffic needs it | PostgreSQL + object storage + CDN | **PostgreSQL done (Phase 6)** — object storage/CDN still pending real media uploads |
+| 3 | Measured bottleneck | Load balancer + multiple app instances | not started |
+| 4 | Measured bottleneck | Caching / background workers / search infra | not started |
+
+Nothing in this table gets built preemptively — Stage 2's database
+half only moved now because it was explicitly requested, not because
+traffic demanded it. Each remaining row still requires a measured
+reason, per the project's development philosophy: build, measure,
+identify the actual bottleneck, fix that bottleneck.
 
 ## What's still deliberately missing
 
-- No deployment docs or process yet — that's Phase 6: documenting env
-  vars, migration process, deployment steps, and rollback, then
-  deploying the simplest reliable version.
+- No deployment docs or process yet — that's Phase 7: documenting
+  deployment steps and rollback, then deploying the simplest reliable
+  version, now with PostgreSQL as the target production database.
 - No author bio content — `templates/about.html` ships with bracketed
   placeholder copy; it's meant to be edited directly, not generated.
 - No image handling yet — `cover_image` exists on the Work model and
   the admin form accepts a path/URL, but nothing uploads or validates
-  an actual file. Add when there's a real cover to show.
+  an actual file. Add when there's a real cover to show (this is also
+  the other half of Stage 2 — object storage — still pending).

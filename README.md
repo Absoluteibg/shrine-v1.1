@@ -5,12 +5,10 @@ built as a modular monolith that can grow into a larger publishing
 platform without a rewrite. See [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 for the design rationale.
 
-**Status: Phase 5 — Quality.** Consolidated security/performance review
-complete: fixed a real N+1 query, capped unbounded content input, added
-a global error handler with an on-brand 500 page, audit logging for
-every content-lifecycle action, a database backup script, and 152 tests
-passing — including a systematic check that every admin route requires
-authentication.
+**Status: Phase 6 — Scaling: PostgreSQL migration.** Production
+database moved from SQLite to PostgreSQL, verified for real — the full
+158-test suite passes against a live PostgreSQL server with zero
+application code changes, only `DATABASE_URL`. See "Database" below.
 
 ## Requirements
 
@@ -47,6 +45,53 @@ uvicorn app.main:app --reload
 ```bash
 python -m pytest tests/ -v
 ```
+
+Runs against a throwaway SQLite file per test by default — fast, zero
+external dependencies. To run the exact same suite against PostgreSQL
+instead (useful after touching anything DB-related, or just to confirm
+the app still behaves identically on the production database):
+
+```bash
+export TEST_DATABASE_URL=postgresql+psycopg2://shrine:your-password@localhost:5432/shrine_test
+python -m pytest tests/ -v
+```
+
+Use a **separate** database from your dev/production one — each test
+creates and drops the full schema.
+
+## Database
+
+SQLite for local development, PostgreSQL for production — same code,
+same migrations, same test suite either way. Only `DATABASE_URL`
+changes; see `.env.example`. This isn't a theoretical claim: Phase 6
+ran the entire 158-test suite, a full admin-to-public content
+lifecycle, and every existing SQLite backup/migration workflow against
+a live PostgreSQL server with zero application code changes.
+
+**Moving an existing SQLite site to PostgreSQL:**
+
+```bash
+# 1. Create the database and a role for the app
+sudo -u postgres psql -c "CREATE USER shrine WITH PASSWORD 'your-password';"
+sudo -u postgres psql -c "CREATE DATABASE shrine OWNER shrine;"
+
+# 2. Point DATABASE_URL at it in .env, then create the schema
+alembic upgrade head
+
+# 3. Migrate existing data (skip this on a fresh install)
+#    pgloader handles the SQLite -> PostgreSQL type/data conversion in
+#    one pass; it's not a Python dependency, install it separately.
+pgloader shrine.db postgresql://shrine:your-password@localhost/shrine
+
+# 4. Restart the app with the new DATABASE_URL
+```
+
+Everything else — repositories, services, routers, templates, tests,
+Alembic migrations — is unchanged. This works because the schema was
+deliberately kept portable from Phase 2 onward: enum columns use
+`VARCHAR` + `CHECK` instead of a native SQLite/Postgres-specific enum
+type (see ARCHITECTURE.md), and no raw SQL exists anywhere in the
+codebase.
 
 ## Content model
 
@@ -108,37 +153,42 @@ design concept behind the reading page.
 
 ## Database backups
 
-```bash
-# Back up now (safe to run while the app is live — uses SQLite's own
-# online backup API, not a raw file copy):
-python scripts/backup_db.py
+`scripts/backup_db.py` reads `DATABASE_URL` and backs up whichever
+database is actually configured — same command either way:
 
-# Back up and prune, keeping only the 10 most recent:
-python scripts/backup_db.py --keep 10
+```bash
+python scripts/backup_db.py              # SQLite: shrine.db -> backups/shrine-<timestamp>.db
+python scripts/backup_db.py --keep 10    # ...and prune, keeping the 10 most recent
 ```
 
-Backups land in `backups/` (gitignored) as `shrine-<timestamp>.db`.
-Schedule it however you'd schedule anything else on your host — a cron
-entry is the usual choice:
+- **SQLite**: uses SQLite's own online backup API — safe to run while
+  the app is live, unlike a raw file copy.
+- **PostgreSQL**: uses `pg_dump -Fc` (compressed, custom format).
+  Requires the PostgreSQL client tools (`pg_dump` on `PATH` —
+  `apt install postgresql-client` / `brew install postgresql`); these
+  aren't a Python dependency, so they're not in `requirements.txt`.
+
+Backups land in `backups/` (gitignored) — `shrine-<timestamp>.db` for
+SQLite, `shrine-pg-<timestamp>.dump` for PostgreSQL. Schedule it
+however you'd schedule anything else on your host:
 
 ```cron
 0 3 * * * cd /path/to/shrine && /path/to/.venv/bin/python scripts/backup_db.py --keep 30
 ```
 
-**To restore:** stop the app, then replace the live database with a
-backup file:
+**To restore:**
 
 ```bash
+# SQLite — stop the app first, then:
 cp backups/shrine-20260315-030000.db shrine.db
+
+# PostgreSQL:
+pg_restore -h localhost -U shrine -d shrine --clean --if-exists backups/shrine-pg-20260315-030000.dump
 ```
 
 There's deliberately no `restore` script — restoring is rare and
 destructive enough to warrant a deliberate, manual step rather than a
 command someone might run out of habit.
-
-This is a SQLite-specific strategy (Stage 1 — see ARCHITECTURE.md).
-Moving to PostgreSQL later means switching to `pg_dump` or your host's
-managed backup/snapshot tooling instead of this script.
 
 ## Database migrations
 
@@ -177,7 +227,7 @@ app/
 templates/               Jinja2 templates
 static/                   CSS / JS / images
 scripts/
-  backup_db.py            Database backup (Phase 5)
+  backup_db.py            Database backup — SQLite or Postgres (Phase 5/6)
 tests/
 ```
 
@@ -190,5 +240,5 @@ tests/
 | 3 | Public website | ✅ done |
 | 4 | Admin CMS + auth | ✅ done |
 | 5 | Quality: validation, error handling, logging, security, backups, performance | ✅ done |
-| 6 | Deployment | next |
-| 7 | Real-world scaling (only as measured need appears) | planned |
+| 6 | Scaling: PostgreSQL migration (Stage 2) | ✅ done |
+| 7 | Deployment | next |

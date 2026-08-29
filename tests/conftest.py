@@ -1,11 +1,22 @@
 """
 Shared pytest fixtures.
 
-Tests run against a throwaway SQLite file — a fresh one for every test
-function, deleted after — instead of the real shrine.db. The FastAPI
-`get_db` dependency is overridden to hand out sessions bound to that
-test database, so running the test suite never reads or writes real
-content, and no test can see another test's data.
+Tests run against a throwaway database — the exact backend is
+controlled by the TEST_DATABASE_URL environment variable:
+
+  - unset (default): a fresh temp SQLite file per test function,
+    deleted after. Fast, zero external dependencies — the right
+    default for everyday iteration.
+  - set to a PostgreSQL URL: the exact same test suite runs against a
+    real PostgreSQL server instead, proving the "swap DATABASE_URL,
+    nothing else changes" architecture claim (see ARCHITECTURE.md)
+    isn't just theoretical. Slower (real network round-trips for
+    schema setup/teardown per test), so this is an occasional
+    verification run, not the default.
+
+Either way, the FastAPI `get_db` dependency is overridden to hand out
+sessions bound to that test database, so running the test suite never
+reads or writes real content, and no test can see another test's data.
 """
 
 import os
@@ -23,6 +34,8 @@ from app.core.config import get_settings
 from app.core.security import login_rate_limiter
 from app.db.database import Base, get_db
 from app.main import app
+
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 
 
 @pytest.fixture(autouse=True)
@@ -44,24 +57,30 @@ def _reset_login_rate_limiter():
 @pytest.fixture()
 def test_engine():
     """
-    A fresh, empty SQLite file for every single test function.
+    A fresh, empty database for every single test function.
 
-    This fixture is intentionally function-scoped, not session-scoped:
-    a shared database across the whole test run would let one test's
-    data leak into another's (e.g. a work created in one test showing
-    up in a different test's "list published works" assertion) —
-    exactly the kind of bug that stays invisible until a test happens
-    to assert on page content broadly, then fails for a confusing
-    reason. A fresh file per test costs a few milliseconds and buys
-    real isolation.
+    Isolation matters more than raw speed here — a shared database
+    across the whole test run would let one test's data leak into
+    another's (e.g. a work created in one test showing up in a
+    different test's "list published works" assertion), exactly the
+    kind of bug the Phase 3 test-isolation fix was about. Both branches
+    below guarantee a fresh schema per test; only the mechanism differs
+    per backend (temp file vs. create/drop against a shared server).
     """
-    db_fd, db_path = tempfile.mkstemp(suffix=".db")
-    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    engine.dispose()
-    os.close(db_fd)
-    os.remove(db_path)
+    if TEST_DATABASE_URL:
+        engine = create_engine(TEST_DATABASE_URL)
+        Base.metadata.create_all(bind=engine)
+        yield engine
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+    else:
+        db_fd, db_path = tempfile.mkstemp(suffix=".db")
+        engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        yield engine
+        engine.dispose()
+        os.close(db_fd)
+        os.remove(db_path)
 
 
 @pytest.fixture()
