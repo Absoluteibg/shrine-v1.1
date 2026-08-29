@@ -5,9 +5,12 @@ built as a modular monolith that can grow into a larger publishing
 platform without a rewrite. See [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 for the design rationale.
 
-**Status: Phase 4 — Admin CMS.** Session-based auth, CSRF protection,
-a dashboard, and full Work/Chapter CRUD with publish/archive/delete are
-live behind a single admin account. 107 tests passing.
+**Status: Phase 5 — Quality.** Consolidated security/performance review
+complete: fixed a real N+1 query, capped unbounded content input, added
+a global error handler with an on-brand 500 page, audit logging for
+every content-lifecycle action, a database backup script, and 152 tests
+passing — including a systematic check that every admin route requires
+authentication.
 
 ## Requirements
 
@@ -103,6 +106,40 @@ Draft and archived content is never reachable here — enforced in the
 service layer (Phase 2), not the router. See ARCHITECTURE.md for the
 design concept behind the reading page.
 
+## Database backups
+
+```bash
+# Back up now (safe to run while the app is live — uses SQLite's own
+# online backup API, not a raw file copy):
+python scripts/backup_db.py
+
+# Back up and prune, keeping only the 10 most recent:
+python scripts/backup_db.py --keep 10
+```
+
+Backups land in `backups/` (gitignored) as `shrine-<timestamp>.db`.
+Schedule it however you'd schedule anything else on your host — a cron
+entry is the usual choice:
+
+```cron
+0 3 * * * cd /path/to/shrine && /path/to/.venv/bin/python scripts/backup_db.py --keep 30
+```
+
+**To restore:** stop the app, then replace the live database with a
+backup file:
+
+```bash
+cp backups/shrine-20260315-030000.db shrine.db
+```
+
+There's deliberately no `restore` script — restoring is rare and
+destructive enough to warrant a deliberate, manual step rather than a
+command someone might run out of habit.
+
+This is a SQLite-specific strategy (Stage 1 — see ARCHITECTURE.md).
+Moving to PostgreSQL later means switching to `pg_dump` or your host's
+managed backup/snapshot tooling instead of this script.
+
 ## Database migrations
 
 SHRINE uses Alembic. The connection string comes from `DATABASE_URL` in
@@ -124,6 +161,7 @@ app/
   main.py            FastAPI app, wiring, startup checks
   core/
     config.py         Environment-based settings (single source of truth)
+    security.py        Password hashing, CSRF, admin auth, rate limiting
     templating.py      Shared Jinja2 environment
   db/
     database.py        SQLAlchemy engine/session, declarative Base
@@ -138,6 +176,8 @@ app/
     api.py                 Versioned JSON API (/api/v1)
 templates/               Jinja2 templates
 static/                   CSS / JS / images
+scripts/
+  backup_db.py            Database backup (Phase 5)
 tests/
 ```
 
@@ -149,6 +189,6 @@ tests/
 | 2 | Content system: Work / Chapter / Tag, repositories, services | ✅ done |
 | 3 | Public website | ✅ done |
 | 4 | Admin CMS + auth | ✅ done |
-| 5 | Quality: validation, logging, security review, tests | next |
-| 6 | Deployment | planned |
+| 5 | Quality: validation, error handling, logging, security, backups, performance | ✅ done |
+| 6 | Deployment | next |
 | 7 | Real-world scaling (only as measured need appears) | planned |

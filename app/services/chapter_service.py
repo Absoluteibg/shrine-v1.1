@@ -76,6 +76,10 @@ class ChapterService:
     def list_published_for_work(self, work_id: int) -> list[Chapter]:
         return self.chapters.list_by_work(work_id, status=PublishStatus.PUBLISHED)
 
+    def list_published_for_works(self, work_ids: list[int]) -> dict[int, list[Chapter]]:
+        """Published chapters for multiple works at once — see ChapterRepository for why."""
+        return self.chapters.list_published_grouped_by_work(work_ids)
+
     # --------------------------------------------------------------- writes
 
     def create_chapter(self, work_id: int, data: ChapterCreate) -> Chapter:

@@ -187,14 +187,20 @@ def sitemap_xml(request: Request, db: Session = Depends(get_db)) -> Response:
     urls: list[str] = [base + "/", base + "/about"]
     urls += [f"{base}/{segment}" for segment in _SEGMENT_BY_TYPE.values()]
 
-    # A personal archive's total URL count is small enough that listing
-    # every published work/chapter here in one pass is fine; revisit
-    # with a paginated/indexed sitemap only if that stops being true.
+    # A personal archive's total URL count is small enough that fetching
+    # every published work up front (4 queries, one per type) is fine;
+    # revisit only if that stops being true. The chapters, though, are
+    # fetched in ONE grouped query below rather than one per work — see
+    # ChapterRepository.list_published_grouped_by_work.
+    all_works = []
     for work_type, segment in _SEGMENT_BY_TYPE.items():
-        for work in work_service.list_published(type=work_type, limit=200):
-            urls.append(f"{base}/{segment}/{work.slug}")
-            for chapter in chapter_service.list_published_for_work(work.id):
-                urls.append(f"{base}/works/{work.slug}/chapters/{chapter.slug}")
+        works = work_service.list_published(type=work_type, limit=200)
+        all_works.extend((segment, work) for work in works)
+        urls += [f"{base}/{segment}/{work.slug}" for work in works]
+
+    chapters_by_work = chapter_service.list_published_for_works([work.id for _, work in all_works])
+    for _, work in all_works:
+        urls += [f"{base}/works/{work.slug}/chapters/{chapter.slug}" for chapter in chapters_by_work.get(work.id, [])]
 
     body = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     body += [f"<url><loc>{url}</loc></url>" for url in urls]

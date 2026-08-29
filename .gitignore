@@ -17,6 +17,7 @@ __pycache__/
 *.db
 *.sqlite
 *.sqlite3
+backups/
 
 # Uploaded media (kept out of git; not a durable store — see ARCHITECTURE.md)
 static/images/*

@@ -76,6 +76,15 @@ def db_session(test_engine) -> Generator:
 
 
 @pytest.fixture()
+def services(db_session):
+    """(WorkService, ChapterService) pair sharing one session — for tests that set up content directly."""
+    from app.services.chapter_service import ChapterService
+    from app.services.work_service import WorkService
+
+    return WorkService(db_session), ChapterService(db_session)
+
+
+@pytest.fixture()
 def client(test_engine) -> Generator[TestClient, None, None]:
     """A FastAPI TestClient wired to the throwaway test database."""
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)

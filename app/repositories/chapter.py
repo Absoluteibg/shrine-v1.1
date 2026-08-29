@@ -6,7 +6,7 @@ the query layer, not just by convention.
 """
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.models.chapter import Chapter
 from app.models.enums import PublishStatus
@@ -44,10 +44,47 @@ class ChapterRepository:
         # No limit/offset: chapters are inherently bounded per work (a
         # book has dozens of chapters, not millions of rows). Add
         # pagination here if a real case ever needs it — not before.
-        stmt = select(Chapter).where(Chapter.work_id == work_id).order_by(Chapter.chapter_number.asc())
+        #
+        # defer(content): every current caller of this method is a
+        # table-of-contents-style view (public work page, admin chapter
+        # list, prev/next reading nav) that only needs title/number/
+        # status/slug. Without this, viewing a 40-chapter novel's table
+        # of contents would load every chapter's full body text into
+        # memory just to render a list of titles — exactly the "loading
+        # entire novels when only metadata is required" case the
+        # project brief calls out. The one caller that DOES need body
+        # text (the actual reading page) uses get_by_work_and_slug
+        # instead, which is unaffected.
+        stmt = (
+            select(Chapter)
+            .options(defer(Chapter.content))
+            .where(Chapter.work_id == work_id)
+            .order_by(Chapter.chapter_number.asc())
+        )
         if status is not None:
             stmt = stmt.where(Chapter.status == status)
         return list(self.db.execute(stmt).scalars().all())
+
+    def list_published_grouped_by_work(self, work_ids: list[int]) -> dict[int, list[Chapter]]:
+        """
+        Published chapters for MULTIPLE works in one query, grouped by
+        work_id. Used by sitemap generation, which needs every published
+        work's chapter slugs — querying once per work here would be a
+        textbook N+1 (bounded, since work counts are small for a
+        personal site, but a real one, and cheap to just not have).
+        """
+        if not work_ids:
+            return {}
+        stmt = (
+            select(Chapter)
+            .options(defer(Chapter.content))
+            .where(Chapter.work_id.in_(work_ids), Chapter.status == PublishStatus.PUBLISHED)
+            .order_by(Chapter.work_id, Chapter.chapter_number.asc())
+        )
+        grouped: dict[int, list[Chapter]] = {work_id: [] for work_id in work_ids}
+        for chapter in self.db.execute(stmt).scalars().all():
+            grouped[chapter.work_id].append(chapter)
+        return grouped
 
     def delete(self, chapter: Chapter) -> None:
         self.db.delete(chapter)

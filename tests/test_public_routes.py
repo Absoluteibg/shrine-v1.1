@@ -5,14 +5,6 @@ import pytest
 from app.models.enums import WorkType
 from app.schemas.chapter import ChapterCreate
 from app.schemas.work import WorkCreate
-from app.services.chapter_service import ChapterService
-from app.services.work_service import WorkService
-
-
-@pytest.fixture()
-def services(db_session):
-    return WorkService(db_session), ChapterService(db_session)
-
 
 # ------------------------------------------------------------- end to end
 

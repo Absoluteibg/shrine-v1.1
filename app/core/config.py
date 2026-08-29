@@ -90,3 +90,35 @@ def get_settings() -> Settings:
     re-read on every request.
     """
     return Settings()
+
+
+def validate_production_config(settings: Settings) -> None:
+    """
+    Raise RuntimeError if `settings` would be unsafe to run with
+    ENV=production. A no-op for any other ENV value — dev-only defaults
+    exist specifically so local development has zero setup friction.
+
+    Called from app/main.py's lifespan handler on every startup, so a
+    misconfigured production deployment fails loudly before it ever
+    serves a request, rather than silently running insecurely.
+
+    Extracted as a standalone function (rather than inlined in the
+    lifespan handler) so it's directly unit-testable against constructed
+    Settings instances — see tests/test_config_validation.py — without
+    needing to boot the whole app or manipulate environment variables.
+    """
+    if not settings.is_production:
+        return
+
+    problems: list[str] = []
+    if settings.SECRET_KEY == "dev-only-insecure-secret-change-me":
+        problems.append("SECRET_KEY is still the development default")
+    if settings.uses_dev_only_admin_password:
+        problems.append("ADMIN_PASSWORD_HASH is still the development default")
+    if settings.DEBUG:
+        problems.append("DEBUG is True, which leaks stack traces and internals to visitors")
+
+    if problems:
+        raise RuntimeError(
+            "Refusing to start with ENV=production and unsafe settings: " + "; ".join(problems)
+        )

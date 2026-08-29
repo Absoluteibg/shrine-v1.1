@@ -97,6 +97,7 @@ def login_submit(
 
     login_rate_limiter.record_success(ip)
     request.session["is_admin"] = True
+    logger.info("Admin login succeeded from %s", ip)
     flash(request, "Welcome back.")
     return RedirectResponse("/admin", status_code=303)
 
@@ -104,6 +105,7 @@ def login_submit(
 @router.post("/logout", dependencies=[Depends(require_admin)])
 def logout(request: Request, csrf_token: str = Form(...)):
     verify_csrf(request, csrf_token)
+    logger.info("Admin logout from %s", _client_ip(request))
     request.session.clear()
     return RedirectResponse("/admin/login", status_code=303)
 
@@ -215,6 +217,7 @@ def create_work(
         )
 
     work = WorkService(db).create_work(data)
+    logger.info("Work created: id=%s title=%r type=%s", work.id, work.title, work.type.value)
     note = ""
     if data.slug and data.slug != work.slug:
         note = f" (the URL \u2018{data.slug}\u2019 was already taken \u2014 used \u2018{work.slug}\u2019 instead)"
@@ -315,12 +318,15 @@ def _work_status_action(work_id: int, request: Request, db: Session, action: str
         work_service.get_for_admin(work_id)  # 404 early if it's already gone
         if action == "publish":
             work_service.publish(work_id)
+            logger.info("Work published: id=%s", work_id)
             flash(request, "Work published.")
         elif action == "unpublish":
             work_service.unpublish(work_id)
+            logger.info("Work unpublished: id=%s", work_id)
             flash(request, "Work unpublished \u2014 it's a draft again.")
         elif action == "archive":
             work_service.archive(work_id)
+            logger.info("Work archived: id=%s", work_id)
             flash(request, "Work archived.")
     except WorkNotFoundError:
         flash(request, "That work no longer exists.", "error")
@@ -356,6 +362,7 @@ def delete_work(work_id: int, request: Request, db: Session = Depends(get_db), c
         work = work_service.get_for_admin(work_id)
         title = work.title
         work_service.delete_work(work_id)
+        logger.warning("Work deleted: id=%s title=%r", work_id, title)
         flash(request, f'"{title}" deleted, along with its chapters.')
     except WorkNotFoundError:
         flash(request, "That work no longer exists.", "error")
@@ -439,6 +446,7 @@ def create_chapter(
         )
 
     flash(request, f'"{chapter.title}" created as a draft.')
+    logger.info("Chapter created: id=%s title=%r work_id=%s", chapter.id, chapter.title, work_id)
     return RedirectResponse(f"/admin/chapters/{chapter.id}/edit", status_code=303)
 
 
@@ -533,12 +541,15 @@ def _chapter_status_action(chapter_id: int, request: Request, db: Session, actio
         chapter_service.get_for_admin(chapter_id)  # 404 early if it's already gone
         if action == "publish":
             chapter_service.publish(chapter_id)
+            logger.info("Chapter published: id=%s", chapter_id)
             flash(request, "Chapter published.")
         elif action == "unpublish":
             chapter_service.unpublish(chapter_id)
+            logger.info("Chapter unpublished: id=%s", chapter_id)
             flash(request, "Chapter unpublished \u2014 it's a draft again.")
         elif action == "archive":
             chapter_service.archive(chapter_id)
+            logger.info("Chapter archived: id=%s", chapter_id)
             flash(request, "Chapter archived.")
     except ChapterNotFoundError:
         flash(request, "That chapter no longer exists.", "error")
@@ -574,6 +585,7 @@ def delete_chapter(chapter_id: int, request: Request, db: Session = Depends(get_
         chapter = chapter_service.get_for_admin(chapter_id)
         work_id, title = chapter.work_id, chapter.title
         chapter_service.delete_chapter(chapter_id)
+        logger.warning("Chapter deleted: id=%s title=%r work_id=%s", chapter_id, title, work_id)
         flash(request, f'"{title}" deleted.')
         return RedirectResponse(f"/admin/works/{work_id}/edit", status_code=303)
     except ChapterNotFoundError:

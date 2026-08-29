@@ -23,9 +23,10 @@ from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler as default_http_exception_handler
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.core.config import get_settings
+from app.core.config import get_settings, validate_production_config
 from app.core.templating import templates
 from app.routers import admin, api, public
 from app.services.exceptions import NotFoundError
@@ -43,17 +44,9 @@ logger = logging.getLogger("shrine")
 async def lifespan(app: FastAPI):
     # Fail loudly on startup rather than silently running an insecure
     # production deployment — wrong config here should never reach
-    # "the server is up and serving traffic".
-    if settings.is_production and settings.SECRET_KEY == "dev-only-insecure-secret-change-me":
-        raise RuntimeError(
-            "SECRET_KEY is still the development default. Set a real "
-            "SECRET_KEY environment variable before running in production."
-        )
-    if settings.is_production and settings.uses_dev_only_admin_password:
-        raise RuntimeError(
-            "ADMIN_PASSWORD_HASH is still the development default. Generate a real "
-            "one (see README.md) before running in production."
-        )
+    # "the server is up and serving traffic". See
+    # app/core/config.py:validate_production_config for what's checked.
+    validate_production_config(settings)
 
     logger.info(
         "%s starting up | env=%s debug=%s db=%s",
@@ -71,6 +64,12 @@ app = FastAPI(
     debug=settings.DEBUG,
     lifespan=lifespan,
 )
+
+# Compresses text responses (HTML/CSS/JS) — meaningful for a
+# long-form-prose site, and free: GZipMiddleware ships with Starlette
+# (a FastAPI dependency already), so this adds no new package. A CDN
+# would take over this job at Stage 2; not needed before then.
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Signed-cookie sessions for admin login. Only ever set for requests
 # that actually touch session data (Starlette skips the Set-Cookie
@@ -136,3 +135,27 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404 and not request.url.path.startswith(("/api", "/admin", "/static")):
         return templates.TemplateResponse(request, "404.html", {}, status_code=404)
     return await default_http_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """
+    The last line of defense: any exception not already handled above
+    (a real bug, a DB hiccup, anything unanticipated) lands here instead
+    of leaking a framework traceback to a visitor. Logged with full
+    context server-side — the person running SHRINE can see exactly
+    what broke; a visitor just sees a plain, on-brand error page.
+
+    Note: FastAPI only routes to this handler when `app.debug=False`
+    (i.e. ENV=production-like settings). With DEBUG=True (the local dev
+    default), Starlette's interactive traceback page takes over instead
+    — which is what you want while developing. See
+    validate_production_config for why DEBUG=True can never reach a
+    real production deployment in the first place.
+    """
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
+    if request.url.path.startswith("/api"):
+        return await default_http_exception_handler(
+            request, StarletteHTTPException(status_code=500, detail="Internal server error")
+        )
+    return templates.TemplateResponse(request, "500.html", {}, status_code=500)

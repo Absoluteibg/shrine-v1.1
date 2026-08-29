@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Something went wrong &mdash; {{ app_name }}{% endblock %}
+{% block meta_description %}Something went wrong on our end.{% endblock %}
+
+{% block content %}
+<div class="not-found">
+    <span class="not-found__code">500</span>
+    <h1 class="not-found__title">Something went wrong on our end.</h1>
+    <p class="not-found__body">It's been logged. Try again in a moment, or head back to the archive.</p>
+    <div class="not-found__links">
+        <a href="/">Home</a>
+        <a href="/novels">Novels</a>
+        <a href="/stories">Stories</a>
+        <a href="/poems">Poems</a>
+        <a href="/essays">Essays</a>
+    </div>
+</div>
+{% endblock %}

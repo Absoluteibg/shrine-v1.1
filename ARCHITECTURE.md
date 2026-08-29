@@ -207,6 +207,115 @@ not the app. Worth knowing about flash-message systems generally: a
 broad "is this text present" assertion is vulnerable to unrelated
 one-time UI state, not just to real data.
 
+## Phase 5: quality review findings
+
+A deliberate audit pass, not new features — going through the project
+brief's Phase 5 checklist (validation, error handling, logging,
+security, backups, performance) against what Phases 1–4 actually built.
+What follows is what was found and fixed.
+
+**Validation.** Chapter `content` had no upper bound — a pathological
+paste could create an arbitrarily large row. Capped at 500,000
+characters (multiple novels' worth) in both `ChapterCreate` and
+`ChapterUpdate`: bounds abuse without constraining any real use.
+
+**Error handling.** `validate_production_config()` (`app/core/config.py`)
+replaced three separate inline checks in `main.py`'s lifespan handler
+with one function that reports every problem at once (SECRET_KEY,
+ADMIN_PASSWORD_HASH, and a new check: DEBUG must be False in
+production, since DEBUG=True leaks stack traces). Extracting it also
+made it directly unit-testable without booting the app — see
+`tests/test_config_validation.py`.
+
+A global `@app.exception_handler(Exception)` now catches anything not
+already handled — a real bug, a DB hiccup, anything unanticipated —
+logs it server-side with full context, and renders `templates/500.html`
+instead of a framework traceback. One subtlety worth knowing: FastAPI
+only dispatches to a custom `Exception` handler when `app.debug=False`.
+With `DEBUG=True` (the local dev default), Starlette's interactive
+traceback page takes over instead — which is what you want while
+developing. `validate_production_config` is what guarantees `DEBUG=True`
+can never reach an actual production deployment, so this isn't a gap in
+practice.
+
+**Logging.** Admin actions were only logged on failure (bad login
+attempts). Successful logins/logouts and every work/chapter
+create/publish/unpublish/archive/delete are now logged at INFO (WARNING
+for deletes, the one irreversible action) — a basic audit trail: who
+did what, when. Per-request access logging was deliberately *not*
+added at the app level — uvicorn's own access log already covers that,
+and duplicating it would just be noise.
+
+**Security review.** Systematically checked against the project brief's
+list:
+- Confirmed via `grep` that no raw SQL string construction exists
+  anywhere in the codebase, and no template bypasses autoescaping
+  (`|safe`, `Markup(`) anywhere — every DB query goes through
+  SQLAlchemy's parameterized queries, every template interpolation is
+  escaped by Jinja by default.
+- Added explicit tests proving that escaping (titles, descriptions,
+  chapter content, and admin form re-population, which echoes values
+  into `value="..."` attributes — a classic injection vector if handled
+  wrong) actually works, rather than just assuming Jinja's default
+  behavior — see `tests/test_output_escaping.py`.
+- Added a systematic test asserting **every** admin route requires
+  authentication (`tests/test_admin_authorization.py`), not just the
+  handful that had ad-hoc coverage from Phase 4. It combines an
+  explicit, readable list of routes with an introspection check that
+  fails if a future route is added without a matching test entry — so
+  "someone added a route and forgot `Depends(require_admin)`" can't
+  silently ship untested.
+- File upload handling remains explicitly out of scope — `cover_image`
+  is still a path/URL text field, not a file upload. Nothing to review
+  because nothing exists yet.
+
+**Performance review.** Two real issues, both fixed with tests proving
+the fix:
+- Sitemap generation ran one chapter query *per published work* — a
+  textbook N+1. Fixed with `ChapterRepository.list_published_grouped_by_work`,
+  one query for every work's chapters at once. A regression test
+  (`tests/test_performance.py`) counts actual SQL statements executed
+  via a SQLAlchemy event listener and asserts the count stays small
+  regardless of catalog size — not just that the sitemap's *content*
+  is still correct, which wouldn't have caught the N+1 in the first
+  place.
+- Every table-of-contents view (public work page, admin chapter list,
+  prev/next reading navigation) was loading full chapter body text via
+  `ChapterRepository.list_by_work`, just to render a list of titles —
+  exactly the "loading entire novels when only metadata is required"
+  case the brief warns about. Fixed with `defer(Chapter.content)` on
+  that query; the one caller that legitimately needs body text (the
+  actual reading page) uses a different, single-row method and is
+  unaffected.
+- `GZipMiddleware` added — free (ships with Starlette, a FastAPI
+  dependency already; no new package) and meaningful for a site whose
+  entire purpose is serving long-form, highly-compressible prose.
+- Caching was deliberately *not* added. Nothing here is expensive
+  enough to justify it yet, per the project's build → measure → fix
+  philosophy; the N+1 fix already makes sitemap generation cheap at any
+  realistic catalog size.
+
+**Database backups.** `scripts/backup_db.py` uses SQLite's own online
+backup API (via Python's `sqlite3` module) rather than a raw file copy
+— safe to run while the app is live, since it copies page-by-page under
+SQLite's own locking instead of risking a half-written page mid-copy.
+Writing it surfaced a real parsing bug before it ever shipped: naively
+using `urllib.parse.urlparse` on a SQLAlchemy SQLite URL silently
+corrupts the relative-path case. SQLAlchemy's convention is that slash
+count is meaningful —
+
+```
+sqlite:///relative/path.db    (3 slashes -> relative)
+sqlite:////absolute/path.db   (4 slashes -> absolute)
+```
+
+— which `urlparse` has no way to know; it treats both as an absolute
+path, turning `sqlite:///./shrine.db` into `/./shrine.db`, resolving to
+`/shrine.db` at the filesystem root. The script parses this itself
+based on the actual convention instead. Covered directly in
+`tests/test_backup_script.py`, including the exact case that would have
+been silently wrong.
+
 ## Scaling path (not built yet — for context)
 
 | Stage | Trigger | Change |
@@ -222,14 +331,11 @@ measure, identify the actual bottleneck, fix that bottleneck.
 
 ## What's still deliberately missing
 
-- No comprehensive input-sanitization/security review pass yet — the
-  individual pieces (CSRF, password hashing, security headers, output
-  escaping via Jinja autoescape) are in place, but a dedicated Phase 5
-  pass is still the right place to review them as a whole rather than
-  trusting they compose correctly by construction.
+- No deployment docs or process yet — that's Phase 6: documenting env
+  vars, migration process, deployment steps, and rollback, then
+  deploying the simplest reliable version.
 - No author bio content — `templates/about.html` ships with bracketed
   placeholder copy; it's meant to be edited directly, not generated.
 - No image handling yet — `cover_image` exists on the Work model and
   the admin form accepts a path/URL, but nothing uploads or validates
   an actual file. Add when there's a real cover to show.
-- No deployment docs yet — that's Phase 6.
